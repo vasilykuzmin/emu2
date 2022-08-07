@@ -1,6 +1,6 @@
 from os import stat
 from pinManager import PinManager
-
+from utils import castTuple
 
 class CodeManager:
     includes = ['#include <iostream>', '#include <bitset>']
@@ -41,10 +41,11 @@ class CodeManager:
                 CodeManager.input.append(f'pins[{ipins[-1][-1]}] = ipins[{i}];')
                 i += 1
 
-        opins = gateInfo[0](*ipins, shape=gateInfo[1])
+        opins = castTuple(gateInfo[0](*ipins, shape=gateInfo[1]))
         CodeManager.defines.append(f'#define ASIZE {PinManager.maxNum}')
 
         o = 0
+        print(opins)
         for pinSet in opins:
             for pin in pinSet:
                 CodeManager.output.append(f'opins[{o}] = pins[{pin}];')
