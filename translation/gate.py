@@ -162,3 +162,41 @@ class FADD(Gate):
         carry = OR(and1, and2)
         PinManager.freePin(and1, and2)
         return sum, carry
+
+@template
+class MUX(Gate):
+    @implio({'b': Any,}, ('2**b', 'b'), ('1',))
+    def parallel(input, select, b):
+        mux1 = MUX(input[:2**(b - 1)], select[:-1], shape={'b': b - 1})
+        mux2 = MUX(input[2**(b - 1):], select[:-1], shape={'b': b - 1})
+        mux3 = MUX(mux1 + mux2, [select[-1]])
+        PinManager.freePin(mux1, mux2)
+        return mux3
+    
+    @implio({'b': 1,}, ('2', '1'), ('1'))
+    def compile(input, select, b):
+        nt = NOT(select)
+        and1 = AND([input[0]], nt)
+        PinManager.freePin(nt)
+        and2 = AND([input[1]], select)
+        or_ = OR(and1, and2)
+        PinManager.freePin(and1, and2)
+        return or_
+
+@template
+class DEMUX(Gate):
+    @implio({'b': Any,}, ('1', 'b'), ('2**b',))
+    def parallel(input, select, b):
+        demux3 = DEMUX(input, [select[-1]])
+        demux1 = DEMUX([demux3[0]], select[:-1], shape={'b': b - 1})
+        demux2 = DEMUX([demux3[1]], select[:-1], shape={'b': b - 1})
+        PinManager.freePin(demux3)
+        return demux1 + demux2
+    
+    @implio({'b': 1,}, ('1', '1'), ('2'))
+    def compile(input, select, b):
+        nt = NOT(select)
+        and1 = AND(input, nt)
+        PinManager.freePin(nt)
+        and2 = AND(input, select)
+        return and1 + and2
