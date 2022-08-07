@@ -41,7 +41,7 @@ class CodeManager:
                 CodeManager.input.append(f'pins[{ipins[-1][-1]}] = ipins[{i}];')
                 i += 1
 
-        *(opins), = gateInfo[0](*ipins, shape=gateInfo[1])
+        opins = gateInfo[0](*ipins, shape=gateInfo[1])
         CodeManager.defines.append(f'#define ASIZE {PinManager.maxNum}')
 
         o = 0

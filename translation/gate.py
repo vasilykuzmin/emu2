@@ -9,7 +9,7 @@ class Gate:
     
     @classmethod
     def parallelTemplate(cls, *args, b=1):
-        return cls(*[arg[:len(arg) // 2] for arg in args], shape={'b': b // 2}) + cls(*[arg[len(arg) - len(arg) // 2:] for arg in args], shape={'b': b - b // 2})
+        return cls(*[arg[:len(arg) // 2] for arg in args], shape={'b': b // 2}) + cls(*[arg[len(arg) // 2:] for arg in args], shape={'b': b - b // 2})
 
 
 def implio(shape, ival=('0',), oval=('0',)):
@@ -28,7 +28,7 @@ def implio(shape, ival=('0',), oval=('0',)):
 class NAND(Gate):
     @implio({'b': Any,}, ('b', 'b'), ('b'))
     def parallel(l, r, b):
-        return NAND.parallelTemplate(l, r, b=b),
+        return NAND.parallelTemplate(l, r, b=b)
     
     @implio({'b': 1,}, ('1', '1'), ('1'))
     def compile(l, r, b):

@@ -4,5 +4,5 @@ import gate
 
 
 if __name__ == '__main__':
-    CodeManager.translateCode((gate.NAND, {'b': 1}))
+    CodeManager.translateCode((gate.NAND, {'b': 4}))
     CodeManager.saveCode('translation.hpp')
