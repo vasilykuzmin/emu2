@@ -12,7 +12,8 @@ class PinManager:
         return [PinManager.availablePins.pop()]
     
     @staticmethod
-    def freePin(pin):
-        for i in pin:
-            assert i not in PinManager.availablePins, f'Invalid free!'
-            PinManager.availablePins.add(i)
+    def freePin(*args):
+        for arg in args:
+            for i in arg:
+                assert i not in PinManager.availablePins, f'Invalid free!'
+                PinManager.availablePins.add(i)

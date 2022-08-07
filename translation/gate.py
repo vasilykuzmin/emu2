@@ -5,7 +5,7 @@ from codeManager import CodeManager
 from utils import castTuple
 
 class Gate:
-    def __new__(cls, *args, shape={}, channel='compile', **kwargs):
+    def __new__(cls, *args, shape={'b': 1}, channel='compile', **kwargs):
         return cls._template_call(channel, *args, shape=shape, **kwargs)
     
     @classmethod
@@ -47,7 +47,7 @@ class NOT(Gate):
     
     @implio({'b': 1,}, ('1'), ('1'))
     def compile(i, b):
-        return NAND(i, i, shape={'b': 1})
+        return NAND(i, i)
 
 @template
 class DOUBLER(Gate):
@@ -67,7 +67,63 @@ class AND(Gate):
     
     @implio({'b': 1,}, ('1', '1'), ('1'))
     def compile(l, r, b):
-        nand = NAND(l, r, shape={'b': 1})
-        nt = NOT(nand, shape={'b': 1})
+        nand = NAND(l, r)
+        nt = NOT(nand)
         PinManager.freePin(nand)
+        return nt
+
+@template
+class OR(Gate):
+    @implio({'b': Any,}, ('b', 'b'), ('b'))
+    def parallel(l, r, b):
+        return OR.parallelTemplate(l, r, b=b)
+    
+    @implio({'b': 1,}, ('1', '1'), ('1'))
+    def compile(l, r, b):
+        nt1 = NOT(l)
+        nt2 = NOT(r)
+        nand = NAND(nt1, nt2)
+        PinManager.freePin(nt1, nt2)
+        return nand
+
+@template
+class NOR(Gate):
+    @implio({'b': Any,}, ('b', 'b'), ('b'))
+    def parallel(l, r, b):
+        return NOR.parallelTemplate(l, r, b=b)
+    
+    @implio({'b': 1,}, ('1', '1'), ('1'))
+    def compile(l, r, b):
+        or_ = OR(l, r)
+        nt = NOT(or_)
+        PinManager.freePin(or_)
+        return nt
+
+@template
+class XOR(Gate):
+    @implio({'b': Any,}, ('b', 'b'), ('b'))
+    def parallel(l, r, b):
+        return XOR.parallelTemplate(l, r, b=b)
+    
+    @implio({'b': 1,}, ('1', '1'), ('1'))
+    def compile(l, r, b):
+        m = NAND(l, r)
+        l = NAND(l, m)
+        r = NAND(m, r)
+        PinManager.freePin(m)
+        ret = NAND(l, r)
+        PinManager.freePin(l, r)
+        return ret
+
+@template
+class XNOR(Gate):
+    @implio({'b': Any,}, ('b', 'b'), ('b'))
+    def parallel(l, r, b):
+        return XNOR.parallelTemplate(l, r, b=b)
+    
+    @implio({'b': 1,}, ('1', '1'), ('1'))
+    def compile(l, r, b):
+        xor = XOR(l, r)
+        nt = NOT(xor)
+        PinManager.freePin(xor)
         return nt
