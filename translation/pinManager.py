@@ -10,3 +10,9 @@ class PinManager:
             PinManager.availablePins.add(PinManager.maxNum)
             PinManager.maxNum += 1
         return [PinManager.availablePins.pop()]
+    
+    @staticmethod
+    def freePin(pin):
+        for i in pin:
+            assert i not in PinManager.availablePins, f'Invalid free!'
+            PinManager.availablePins.add(i)

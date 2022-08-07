@@ -45,7 +45,6 @@ class CodeManager:
         CodeManager.defines.append(f'#define ASIZE {PinManager.maxNum}')
 
         o = 0
-        print(opins)
         for pinSet in opins:
             for pin in pinSet:
                 CodeManager.output.append(f'opins[{o}] = pins[{pin}];')

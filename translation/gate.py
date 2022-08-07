@@ -59,3 +59,15 @@ class DOUBLER(Gate):
     def compile(i, b):
         return i, i
 
+@template
+class AND(Gate):
+    @implio({'b': Any,}, ('b', 'b'), ('b'))
+    def parallel(l, r, b):
+        return AND.parallelTemplate(l, r, b=b)
+    
+    @implio({'b': 1,}, ('1', '1'), ('1'))
+    def compile(l, r, b):
+        nand = NAND(l, r, shape={'b': 1})
+        nt = NOT(nand, shape={'b': 1})
+        PinManager.freePin(nand)
+        return nt
