@@ -5,7 +5,9 @@ from codeManager import CodeManager
 from utils import castTuple
 
 class Gate:
-    def __new__(cls, *args, shape={'b': 1}, channel='compile', **kwargs):
+    defaultShape = {'b': 1}
+
+    def __new__(cls, *args, shape=defaultShape, channel='compile', **kwargs):
         return cls._template_call(channel, *args, shape=shape, **kwargs)
     
     @classmethod
@@ -127,3 +129,36 @@ class XNOR(Gate):
         nt = NOT(xor)
         PinManager.freePin(xor)
         return nt
+
+@template
+class HADD(Gate):
+    @implio({'b': Any,}, ('b', 'b'), ('b', '1'))
+    def parallel(l, r, b):
+        sum1, carry = HADD(l[:b // 2], r[:b // 2], shape={'b':b // 2})
+        sum2, carry = FADD(l[b // 2:], r[b // 2:], carry, shape={'b': b - b // 2})
+        return sum1 + sum2, carry
+    
+    @implio({'b': 1,}, ('1', '1'), ('1', '1'))
+    def compile(l, r, b):
+        sum = XOR(l, r)
+        carry = AND(l, r)
+        return sum, carry
+
+@template
+class FADD(Gate):
+    @implio({'b': Any,}, ('b', 'b', '1'), ('b', '1'))
+    def parallel(l, r, carry, b):
+        sum1, carry = FADD(l[:b // 2], r[:b // 2], carry, shape={'b':b // 2})
+        sum2, carry = FADD(l[b // 2:], r[b // 2:], carry, shape={'b': b - b // 2})
+        return sum1 + sum2, carry
+    
+    @implio({'b': 1,}, ('1', '1', '1'), ('1', '1'))
+    def compile(l, r, carry, b):
+        xor1 = XOR(l, r)
+        sum = XOR(xor1, carry)
+        and1 = AND(l, r)
+        and2 = AND(xor1, carry)
+        PinManager.freePin(xor1)
+        carry = OR(and1, and2)
+        PinManager.freePin(and1, and2)
+        return sum, carry
