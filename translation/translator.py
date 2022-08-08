@@ -4,5 +4,5 @@ import gate
 
 
 if __name__ == '__main__':
-    CodeManager.translateCode((gate.DEMUX, {'b': 2}))
+    CodeManager.translateCode((gate.MUXP, {'s': 1, 'b': 1}))
     CodeManager.saveCode('translation.hpp')

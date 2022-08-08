@@ -7,7 +7,9 @@ from utils import castTuple
 class Gate:
     defaultShape = {'b': 1}
 
-    def __new__(cls, *args, shape=defaultShape, channel='compile', **kwargs):
+    def __new__(cls, *args, shape=None, channel='compile', **kwargs):
+        if shape is None:
+            shape = cls.defaultShape
         return cls._template_call(channel, *args, shape=shape, **kwargs)
     
     @classmethod
@@ -165,36 +167,58 @@ class FADD(Gate):
 
 @template
 class MUX(Gate):
-    @implio({'b': Any,}, ('2**b', 'b'), ('1',))
-    def parallel(input, select, b):
-        mux1 = MUX(input[:2**(b - 1)], select[:-1], shape={'b': b - 1})
-        mux2 = MUX(input[2**(b - 1):], select[:-1], shape={'b': b - 1})
-        mux3 = MUX(mux1 + mux2, [select[-1]])
+    defaultShape = {'s': 1}
+
+    @implio({'s': Any, 'b': Any})
+    def width(select, *input, s, b):
+        mux1 = MUX(select[:-1], *(input[:2**(s - 1)]), shape={'s': s - 1, 'b': b})
+        mux2 = MUX(select[:-1], *(input[2**(s - 1):]), shape={'s': s - 1, 'b': b})
+        mux3 = MUX([select[-1]], mux1, mux2, shape={'s': 1, 'b': b})
         PinManager.freePin(mux1, mux2)
         return mux3
-    
-    @implio({'b': 1,}, ('2', '1'), ('1'))
-    def compile(input, select, b):
+
+    @implio({'s': 1, 'b': Any})
+    def parallel(select, l, r, s=0, b=0):
+        ans = []
+        for i in range(b):
+            ans += MUX(select, [l[i]], [r[i]])
+        return ans
+
+    @implio({'s': 1,}, ('1', '1', '1'), ('1'))
+    def compile(select, l, r, s=0):
         nt = NOT(select)
-        and1 = AND([input[0]], nt)
+        and1 = AND(l, nt)
         PinManager.freePin(nt)
-        and2 = AND([input[1]], select)
+        and2 = AND(r, select)
         or_ = OR(and1, and2)
         PinManager.freePin(and1, and2)
         return or_
 
 @template
+class MUXP(Gate):
+    @implio({'s': Any, 'b': Any}, ('s', 'b*2**s'), ('b',))
+    def parallel(select, input, s, b):
+        unpacked = [input[i * b:(i + 1) * b] for i in range(2**s)]
+        ans = []
+        for pins in castTuple(MUX(select, *unpacked, shape={'s':s, 'b':b})):
+            ans += pins
+        return ans
+        
+
+@template
 class DEMUX(Gate):
-    @implio({'b': Any,}, ('1', 'b'), ('2**b',))
-    def parallel(input, select, b):
-        demux3 = DEMUX(input, [select[-1]])
-        demux1 = DEMUX([demux3[0]], select[:-1], shape={'b': b - 1})
-        demux2 = DEMUX([demux3[1]], select[:-1], shape={'b': b - 1})
+    defaultShape = {'s': 1}
+
+    @implio({'s': Any,}, ('s', '1'), ('2**s',))
+    def width(select, input, s):
+        demux3 = DEMUX([select[-1]], input)
+        demux1 = DEMUX(select[:-1], [demux3[0]], shape={'s': s - 1})
+        demux2 = DEMUX(select[:-1], [demux3[1]], shape={'s': s - 1})
         PinManager.freePin(demux3)
         return demux1 + demux2
     
-    @implio({'b': 1,}, ('1', '1'), ('2'))
-    def compile(input, select, b):
+    @implio({'s': 1,}, ('1', '1'), ('2'))
+    def compile(select, input, s):
         nt = NOT(select)
         and1 = AND(input, nt)
         PinManager.freePin(nt)

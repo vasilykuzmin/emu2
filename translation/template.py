@@ -21,10 +21,10 @@ def _template_call(cls, channel, *args, shape={}, **kwargs):
     fil = lambda tu : tu[0].keys() >= shape.keys() and all(value == Any or shape[name] == value for name, value in tu[0].items())
     met = lambda tu : sum(value == Any for name, value in tu[0].items())
 
-    assert cls.__name__ in TemplateManager.impls, f'No templates for class {cls.__name__} found! Did you use @template ?'
-    assert channel in TemplateManager.impls[cls.__name__], f'No templates for channel {channel} found! Did you use @impl(channel) ?'
+    assert cls.__name__ in TemplateManager.impls, f'No templates for class {cls.__name__}! Did you use @template ?'
+    assert channel in TemplateManager.impls[cls.__name__], f'No templates for channel {channel} in class {cls.__name__}! Did you use @impl(channel) ?'
     filtered = list(filter(fil, TemplateManager.impls[cls.__name__][channel]))
-    assert len(filtered) >= 1, f'No implementation for shape {shape}'
+    assert len(filtered) >= 1, f'No implementation for shape {shape} in class {cls.__name__}'
     fun = min(filtered, key=met)[1]
 
     return fun(*args, **shape, **kwargs)
