@@ -329,7 +329,7 @@ class BSR(Gate):
 
 @template
 class ALU(Gate):
-    @implio({'b': Any}, ('b', 'b', '7'), ('b', '1'))
+    @implio({'b': Any}, ('b', 'b', '7'), ('b', '3'))
     def compile(A, B, microcode, b):
         nota = NOT(A, shape={'b': b})
         A = MUX([microcode[0]], A, nota, shape={'s': 1, 'b': b})
