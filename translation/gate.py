@@ -2,7 +2,7 @@ from typing import Any
 from template import template, impl
 from pinManager import PinManager
 from codeManager import CodeManager
-from utils import castTuple
+from utils import castTuple, flatten
 
 class Gate:
     defaultShape = {'b': 1}
@@ -179,10 +179,7 @@ class MUX(Gate):
 
     @implio({'s': 1, 'b': Any})
     def parallel(select, l, r, s=0, b=0):
-        ans = []
-        for i in range(b):
-            ans += MUX(select, [l[i]], [r[i]])
-        return ans
+        return flatten(MUX(select, [l[i]], [r[i]]) for i in range(b))
 
     @implio({'s': 1,}, ('1', '1', '1'), ('1'))
     def compile(select, l, r, s=0):
@@ -197,25 +194,29 @@ class MUX(Gate):
 @template
 class MUXP(Gate):
     @implio({'s': Any, 'b': Any}, ('s', 'b*2**s'), ('b',))
-    def parallel(select, input, s, b):
+    def decorate(select, input, s, b):
         unpacked = [input[i * b:(i + 1) * b] for i in range(2**s)]
-        ans = []
-        for pins in castTuple(MUX(select, *unpacked, shape={'s':s, 'b':b})):
-            ans += pins
-        return ans
-        
+        return flatten(castTuple(MUX(select, *unpacked, shape={'s':s, 'b':b})))
 
 @template
 class DEMUX(Gate):
     defaultShape = {'s': 1}
 
-    @implio({'s': Any,}, ('s', '1'), ('2**s',))
-    def width(select, input, s):
-        demux3 = DEMUX([select[-1]], input)
-        demux1 = DEMUX(select[:-1], [demux3[0]], shape={'s': s - 1})
-        demux2 = DEMUX(select[:-1], [demux3[1]], shape={'s': s - 1})
-        PinManager.freePin(demux3)
+    @implio({'s': Any, 'b': Any})
+    def width(select, input, s, b):
+        demux1i, demux2i = DEMUX([select[-1]], input, shape={'s': 1, 'b': b})
+        demux1 = DEMUX(select[:-1], demux1i, shape={'s': s - 1, 'b': b})
+        demux2 = DEMUX(select[:-1], demux2i, shape={'s': s - 1, 'b': b})
+        PinManager.freePin(demux1i, demux2i)
         return demux1 + demux2
+    
+    @implio({'s': 1, 'b': Any})
+    def parallel(select, input, s, b):
+        ll, rr = [], []
+        for i in range(b):
+            l, r = DEMUX(select, [input[i]])
+            ll, rr = ll + l, rr + r
+        return ll, rr
     
     @implio({'s': 1,}, ('1', '1'), ('2'))
     def compile(select, input, s):
@@ -223,4 +224,10 @@ class DEMUX(Gate):
         and1 = AND(input, nt)
         PinManager.freePin(nt)
         and2 = AND(input, select)
-        return and1 + and2
+        return and1, and2
+
+@template
+class DEMUXP(Gate):
+    @implio({'s': Any, 'b': Any}, ('s', 'b'), ('b*2**s',))
+    def decorate(select, input, s, b):
+        return flatten(DEMUX(select, input, shape={'s': s, 'b': b}))
