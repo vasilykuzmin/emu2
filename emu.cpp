@@ -8,6 +8,8 @@ int main()
     {
         std::bitset<ISIZE> ibs = i;
         std::bitset<OSIZE> obs = solve(ibs);
+
+        #ifdef ISHAPE
         int ii = 0;
         for (int i : ISHAPE)
         {
@@ -17,7 +19,11 @@ int main()
             }
             std::cout << ' ';
         }
+        #endif
+
         std::cout << "| ";
+        
+        #ifdef OSHAPE
         int oo = 0;
         for (int i : OSHAPE)
         {
@@ -28,6 +34,7 @@ int main()
             std::cout << ' ';
         }
         std::cout << '\n';
+        #endif
     }
 
     return 0;

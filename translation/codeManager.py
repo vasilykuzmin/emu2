@@ -31,7 +31,8 @@ class CodeManager:
     def translateCode(gateInfo):
         iShape = gateInfo[0](shape=gateInfo[1], channel='i')
         CodeManager.defines.append(f'#define ISIZE {sum(iShape)}')
-        CodeManager.defines.append(f'#define ISHAPE {"{"}{", ".join([str(i) for i in iShape])}{"}"}')
+        if len(iShape) > 0:
+            CodeManager.defines.append(f'#define ISHAPE {"{"}{", ".join([str(i) for i in iShape])}{"}"}')
 
         ipins = []
         i = 0
@@ -53,4 +54,5 @@ class CodeManager:
 
         oShape = gateInfo[0](shape=gateInfo[1], channel='o')
         CodeManager.defines.append(f'#define OSIZE {sum(oShape)}')
-        CodeManager.defines.append(f'#define OSHAPE {"{"}{", ".join([str(o) for o in oShape])}{"}"}')
+        if len(oShape) > 0:
+            CodeManager.defines.append(f'#define OSHAPE {"{"}{", ".join([str(o) for o in oShape])}{"}"}')

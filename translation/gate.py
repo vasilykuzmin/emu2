@@ -1,3 +1,4 @@
+from email.policy import default
 from typing import Any
 from template import template, impl
 from pinManager import PinManager
@@ -19,7 +20,7 @@ class Gate:
         return tuple(l[i] + r[i] for i in range(len(l)))
 
 
-def implio(shape, ival=('0',), oval=('0',)):
+def implio(shape={}, ival=(), oval=()):
     def decorate(fun):
         def i(*args, **kwargs):
             return [eval(i, kwargs) for i in ival]
@@ -29,6 +30,17 @@ def implio(shape, ival=('0',), oval=('0',)):
         impl(shape, 'o')(o)
         return impl(shape, 'compile')(fun)
     return decorate
+
+
+def ZERO():
+    pin = PinManager.requestPin()
+    CodeManager.code.append(f'pins[{pin[0]}] = 0;')
+    return pin
+
+def ONE():
+    pin = PinManager.requestPin()
+    CodeManager.code.append(f'pins[{pin[0]}] = 1;')
+    return pin
 
 
 @template
@@ -231,3 +243,31 @@ class DEMUXP(Gate):
     @implio({'s': Any, 'b': Any}, ('s', 'b'), ('b*2**s',))
     def decorate(select, input, s, b):
         return flatten(DEMUX(select, input, shape={'s': s, 'b': b}))
+
+@template
+class BSL(Gate):
+    @implio({'b': Any}, ('2**b', 'b'), ('2**b',))
+    def compile(register, shift, b):
+        zero = ZERO()
+        for i in range(b):
+            alternate = zero * 2**i + register[:-2**i]
+            nregister = MUX([shift[i]], register, alternate, shape={'s': 1, 'b': 2**b})
+            if i != 0:
+                PinManager.freePin(register)
+            register = nregister
+        PinManager.freePin(zero)
+        return register
+
+@template
+class BSR(Gate):
+    @implio({'b': Any}, ('2**b', 'b'), ('2**b',))
+    def compile(register, shift, b):
+        zero = ZERO()
+        for i in range(b):
+            alternate = register[2**i:] + zero * 2**i
+            nregister = MUX([shift[i]], register, alternate, shape={'s': 1, 'b': 2**b})
+            if i != 0:
+                PinManager.freePin(register)
+            register = nregister
+        PinManager.freePin(zero)
+        return register
