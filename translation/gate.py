@@ -149,8 +149,9 @@ class HADD(Gate):
     @implio({'b': Any,}, ('b', 'b'), ('b', '1'))
     def parallel(l, r, b):
         sum1, carry = HADD(l[:b // 2], r[:b // 2], shape={'b':b // 2})
-        sum2, carry = FADD(l[b // 2:], r[b // 2:], carry, shape={'b': b - b // 2})
-        return sum1 + sum2, carry
+        sum2, carry2 = FADD(l[b // 2:], r[b // 2:], carry, shape={'b': b - b // 2})
+        PinManager.freePin(carry)
+        return sum1 + sum2, carry2
     
     @implio({'b': 1,}, ('1', '1'), ('1', '1'))
     def compile(l, r, b):
@@ -163,8 +164,9 @@ class FADD(Gate):
     @implio({'b': Any,}, ('b', 'b', '1'), ('b', '1'))
     def parallel(l, r, carry, b):
         sum1, carry = FADD(l[:b // 2], r[:b // 2], carry, shape={'b':b // 2})
-        sum2, carry = FADD(l[b // 2:], r[b // 2:], carry, shape={'b': b - b // 2})
-        return sum1 + sum2, carry
+        sum2, carry2 = FADD(l[b // 2:], r[b // 2:], carry, shape={'b': b - b // 2})
+        PinManager.freePin(carry)
+        return sum1 + sum2, carry2
     
     @implio({'b': 1,}, ('1', '1', '1'), ('1', '1'))
     def compile(l, r, carry, b):
@@ -176,6 +178,32 @@ class FADD(Gate):
         carry = OR(and1, and2)
         PinManager.freePin(and1, and2)
         return sum, carry
+
+@template
+class HINC(Gate):
+    @implio({'b': Any,}, ('b',), ('b', '1'))
+    def parallel(input, b):
+        sum1, carry = HINC(input[:b // 2], shape={'b':b // 2})
+        sum2, carry2 = INC(input[b // 2:], carry, shape={'b': b - b // 2})
+        PinManager.freePin(carry)
+        return sum1 + sum2, carry2
+    
+    @implio({'b': 1,}, ('1', '1'), ('1', '1'))
+    def compile(input, b):
+        return INC(input, ONE())
+
+@template
+class INC(Gate):
+    @implio({'b': Any,}, ('b',), ('b', '1'))
+    def parallel(input, carry, b):
+        sum1, carry = INC(input[:b // 2], carry, shape={'b':b // 2})
+        sum2, carry2 = INC(input[b // 2:], carry, shape={'b': b - b // 2})
+        PinManager.freePin(carry)
+        return sum1 + sum2, carry2
+    
+    @implio({'b': 1,}, ('1', '1'), ('1', '1'))
+    def compile(input, carry, b):
+        return HADD(input, carry)
 
 @template
 class MUX(Gate):
