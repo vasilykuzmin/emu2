@@ -28,7 +28,14 @@ class CodeManager:
         
     
     @staticmethod
-    def translateCode(gateInfo):
+    def translateCode(gateInfo, mode='a'):
+        if mode == 'a':
+            CodeManager.defines.append('#define AUTOMATIC')
+        elif mode == 'm':
+            CodeManager.defines.append('#define MANUAL')
+        else:
+            raise f'Unknown mode: {mode}'
+
         iShape = gateInfo[0](shape=gateInfo[1], channel='i')
         CodeManager.defines.append(f'#define ISIZE {sum(iShape)}')
         if len(iShape) > 0:

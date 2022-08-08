@@ -4,6 +4,7 @@ from template import template, impl
 from pinManager import PinManager
 from codeManager import CodeManager
 from utils import castTuple, flatten
+import math
 
 class Gate:
     defaultShape = {'b': 1}
@@ -17,6 +18,8 @@ class Gate:
     def parallelTemplate(cls, *args, b=1):
         l = castTuple(cls(*[arg[:len(arg) // 2] for arg in args], shape={'b': b // 2}))
         r = castTuple(cls(*[arg[len(arg) // 2:] for arg in args], shape={'b': b - b // 2}))
+        if len(l) == 1:
+            return l[0] + r[0]
         return tuple(l[i] + r[i] for i in range(len(l)))
 
 
@@ -42,6 +45,12 @@ def ONE():
     CodeManager.code.append(f'pins[{pin[0]}] = 1;')
     return pin
 
+def COPY(pins):
+    res = []
+    for pin in pins:
+        res += PinManager.requestPin()
+        CodeManager.code.append(f'pins[{res[-1]}] = pins[{pin}];')
+    return res
 
 @template
 class NAND(Gate):
@@ -77,6 +86,15 @@ class DOUBLER(Gate):
 
 @template
 class AND(Gate):
+    @implio({'w': Any}, ('w',), ('1',))
+    def wide(input, w):
+        last = COPY([input[0]])
+        for i in range(w - 1):
+            new = AND(last, [input[i + 1]])
+            PinManager.freePin(last)
+            last = new
+        return last
+
     @implio({'b': Any,}, ('b', 'b'), ('b'))
     def parallel(l, r, b):
         return AND.parallelTemplate(l, r, b=b)
@@ -90,6 +108,15 @@ class AND(Gate):
 
 @template
 class OR(Gate):
+    @implio({'w': Any}, ('w',), ('1',))
+    def wide(input, w):
+        last = COPY([input[0]])
+        for i in range(w - 1):
+            new = OR(last, [input[i + 1]])
+            PinManager.freePin(last)
+            last = new
+        return last 
+
     @implio({'b': Any,}, ('b', 'b'), ('b'))
     def parallel(l, r, b):
         return OR.parallelTemplate(l, r, b=b)
@@ -277,11 +304,11 @@ class BSL(Gate):
     @implio({'b': Any}, ('2**b', 'b'), ('2**b',))
     def compile(register, shift, b):
         zero = ZERO()
+        register = COPY(register)
         for i in range(b):
             alternate = zero * 2**i + register[:-2**i]
             nregister = MUX([shift[i]], register, alternate, shape={'s': 1, 'b': 2**b})
-            if i != 0:
-                PinManager.freePin(register)
+            PinManager.freePin(register)
             register = nregister
         PinManager.freePin(zero)
         return register
@@ -291,11 +318,46 @@ class BSR(Gate):
     @implio({'b': Any}, ('2**b', 'b'), ('2**b',))
     def compile(register, shift, b):
         zero = ZERO()
+        register = COPY(register)
         for i in range(b):
             alternate = register[2**i:] + zero * 2**i
             nregister = MUX([shift[i]], register, alternate, shape={'s': 1, 'b': 2**b})
-            if i != 0:
-                PinManager.freePin(register)
+            PinManager.freePin(register)
             register = nregister
         PinManager.freePin(zero)
         return register
+
+@template
+class ALU(Gate):
+    @implio({'b': Any}, ('b', 'b', '7'), ('b', '1'))
+    def compile(A, B, microcode, b):
+        nota = NOT(A, shape={'b': b})
+        A = MUX([microcode[0]], A, nota, shape={'s': 1, 'b': b})
+        PinManager.freePin(nota)
+        
+        inca, carrya = HINC(A, shape={'b': b})
+        A = MUX([microcode[1]], A, inca, shape={'s': 1, 'b': b})
+        PinManager.freePin(inca, carrya)
+
+        notb = NOT(B, shape={'b': b})
+        B = MUX([microcode[2]], B, notb, shape={'s': 1, 'b': b})
+        PinManager.freePin(notb)
+        
+        incb, carryb = HINC(B, shape={'b': b})
+        B = MUX([microcode[3]], B, incb, shape={'s': 1, 'b': b})
+        PinManager.freePin(incb, carryb)
+
+        add, carryFlag = HADD(A, B, shape={'b': b})
+        bsl = BSL(A, B, shape={'b': round(math.log(b, 2))})
+        bsr = BSR(A, B, shape={'b': round(math.log(b, 2))})
+        nd_ = AND(A, B, shape={'b': b})
+        or_ = OR (A, B, shape={'b': b})
+        xor = XOR(A, B, shape={'b': b})
+        
+        ret = MUX(microcode[4:7], A, B, add, bsl, bsr, nd_, or_, xor, shape={'s': 3, 'b': b})
+        PinManager.freePin(add, bsl, bsr, nd_, or_, xor)
+
+        nonzeroFlag = OR(ret, shape={'w': b})
+        zeroFlag = NOT(nonzeroFlag)
+        
+        return ret, carryFlag + zeroFlag + nonzeroFlag
