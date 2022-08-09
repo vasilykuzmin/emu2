@@ -28,7 +28,7 @@ class CodeManager:
         
     
     @staticmethod
-    def translateCode(gateInfo, mode='a'):
+    def translateCode(gateInfo, mode='a', ramFilename=None):
         if mode == 'a':
             CodeManager.defines.append('#define AUTOMATIC')
         elif mode == 'm':
@@ -37,6 +37,9 @@ class CodeManager:
             CodeManager.defines.append('#define REPEAT')
         else:
             raise f'Unknown mode: {mode}'
+        
+        if ramFilename is not None:
+            CodeManager.defines.append(f'#define ramFilename "{ramFilename}"')
 
         iShape = gateInfo[0](shape=gateInfo[1], channel='i')
         CodeManager.defines.append(f'#define ISIZE {sum(iShape)}')

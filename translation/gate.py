@@ -51,6 +51,11 @@ def COPY(pins):
         CodeManager.code.append(f'pins[{res[-1]}] = pins[{pin}];')
     return res
 
+def DEBUGOUTPUT(pins, message=''):
+    if message != '':
+        CodeManager.code.append(f'std::cout << "{message}" << " ";')
+    CodeManager.code.append(f'std::cout << {" << ".join([f"int(pins[{pin}])" for pin in pins])} << std::endl;')
+
 @template
 class NAND(Gate):
     @implio({'b': Any,}, ('b', 'b'), ('b'))
@@ -387,7 +392,8 @@ class RAM(Gate):
 
     @implio({'b': Any, 's': Any}, ('s',), ('b',))
     def compile(ptr, b, s):
-        CodeManager.code.append(f'RAMINDEX = {" + ".join([f"(pins[{ptr[i]}] << {s})" for i in range(s)])};')
+        CodeManager.code.append(f'RAMINDEX = {" + ".join([f"(pins[{ptr[i]}] << {i})" for i in range(s)])};')
+        # CodeManager.code.append('std::cout << RAMINDEX << std::endl;')
         ret = []
         for i in range(b):
             ret += PinManager.requestPin()
@@ -423,13 +429,14 @@ class CPUMicrocodeLookup(Gate):
             '00000010101',
             '00000010110',
         ]
-        cppcodes = ', '.join([f'0b{code}' for code in codes])
+        cppcodes = ', '.join([f'0b{code[::-1]}' for code in codes])
         CodeManager.defines.append(f'std::bitset<11> CPUMicrocodeLookup[{len(codes)}] = {"{"}{cppcodes}{"}"};')
         CodeManager.defines.append('size_t CPUMicrocodeLookupIndex = 0;')
 
     @implio({'b': Any,}, ('b',), ('7', '1', '3',))
     def compile(opcode, b):
-        CodeManager.code.append(f'CPUMicrocodeLookupIndex = {" + ".join([f"(pins[{opcode[i]}] << {b})" for i in range(b)])};')
+        CodeManager.code.append(f'CPUMicrocodeLookupIndex = {" + ".join([f"(pins[{opcode[i]}] << {i})" for i in range(b)])};')
+        # CodeManager.code.append('std::cout << "CPUMicrocodeLookupIndex " << CPUMicrocodeLookupIndex << std::endl;')
         ret = []
         for i in range(11):
             ret += PinManager.requestPin()
@@ -447,7 +454,9 @@ class CPU(Gate):
         opCodeLen = 5
 
         command = RAM(regs[0][:ram], shape={'b': b, 's': ram})
+        # DEBUGOUTPUT(command, 'command')
         ALUMicrocode, incpc, save = CPUMicrocodeLookup(command[:5], shape={'b': 5})
+        # DEBUGOUTPUT(ALUMicrocode, 'alu microcode');
 
         A = MUX(command[opCodeLen:opCodeLen + reg], *regs, shape={'s': reg, 'b': b})
         B = MUX(command[opCodeLen + reg:opCodeLen + 2 * reg], *regs, shape={'s': reg, 'b': b})
@@ -469,9 +478,9 @@ class CPU(Gate):
         regs = list(ADEMUX(command[opCodeLen:opCodeLen + reg], nA, *regs, shape={'s': reg, 'b': b}))
         PinManager.freePin(nA)
 
-        incregs1, carry = HINC(regs[1], shape={'b': b})
+        incregs1, carry = HINC(regs[0], shape={'b': b})
         PinManager.freePin(carry)
-        regs[1] = MUX(incpc, regs[1], incregs1, shape={'s': 1, 'b': b})
+        regs[0] = MUX(incpc, regs[0], incregs1, shape={'s': 1, 'b': b})
         PinManager.freePin(incpc, incregs1)
         
         PinManager.freePin(zero)

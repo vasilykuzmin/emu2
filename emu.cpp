@@ -1,5 +1,6 @@
 #include <iostream>
 #include <bitset>
+#include <fstream>
 #include <ctime>
 #include <chrono>
 #include "translation.hpp"
@@ -8,6 +9,17 @@ using namespace std::literals;
 
 int main()
 {
+#ifdef ramFilename
+    std::ifstream ramFile;
+    ramFile.open(ramFilename, std::ios::in);
+    std::string s;
+    ramFile >> s;
+    ramFile.close();
+    for (int i = 0; i < s.size(); ++i)
+    {
+        RAM[i] = (s[i] == '0' ? 0 : 1);
+    }
+#endif
 #ifdef AUTOMATIC
     for (int i = 0; i < (1 << ISIZE); ++i)
     {
@@ -86,7 +98,18 @@ int main()
         {
             system("clear");
             std::cout << iterations * (1s / fps) << " Hz" << '\n';
-            std::cout << ipins << '\n';
+            #ifdef OSHAPE
+            int oo = 0;
+            for (int i : OSHAPE)
+            {
+                for (int j = 0; j < i; ++j)
+                {
+                    std::cout << ipins[oo++];
+                }
+                std::cout << ' ';
+            }
+            std::cout << '\n';
+            #endif
             last = nlast;
             iterations = 0;
         }
