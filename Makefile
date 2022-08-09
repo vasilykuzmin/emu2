@@ -1,5 +1,5 @@
 CC=g++
-CFLAGS=-Wall
+CFLAGS=-Wall -o3
 
 all: clean
 	$(CC) $(CFLAGS) translation.hpp emu.cpp -o main

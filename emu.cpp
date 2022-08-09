@@ -1,6 +1,10 @@
 #include <iostream>
 #include <bitset>
+#include <ctime>
+#include <chrono>
 #include "translation.hpp"
+
+using namespace std::literals;
 
 int main()
 {
@@ -66,6 +70,26 @@ int main()
             }
             std::cout << '\n';
         #endif
+    }
+#endif
+#ifdef REPEAT
+    std::bitset<ISIZE> ipins;
+    auto last = std::chrono::steady_clock::now();
+    int iterations = 0;
+    while (true)
+    {
+        ipins = solve(ipins);
+        iterations++;
+        auto nlast = std::chrono::steady_clock::now();
+        auto fps = 500ms;
+        if (nlast - last > fps)
+        {
+            system("clear");
+            std::cout << iterations * (1s / fps) << " Hz" << '\n';
+            std::cout << ipins << '\n';
+            last = nlast;
+            iterations = 0;
+        }
     }
 #endif
     return 0;

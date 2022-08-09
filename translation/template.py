@@ -18,7 +18,7 @@ class TemplateManager:
 
 @classmethod
 def _template_call(cls, channel, *args, shape={}, **kwargs):
-    fil = lambda tu : tu[0].keys() >= shape.keys() and all(value == Any or shape[name] == value for name, value in tu[0].items())
+    fil = lambda tu : tu[0].keys() == shape.keys() and all(value == Any or shape[name] == value for name, value in tu[0].items())
     met = lambda tu : sum(value == Any for name, value in tu[0].items())
 
     assert cls.__name__ in TemplateManager.impls, f'No templates for class {cls.__name__}! Did you use @template ?'

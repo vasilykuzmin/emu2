@@ -1,4 +1,3 @@
-from email.policy import default
 from typing import Any
 from template import template, impl
 from pinManager import PinManager
@@ -294,6 +293,21 @@ class DEMUX(Gate):
         return and1, and2
 
 @template
+class ADEMUX(Gate):
+    @implio({'s': Any, 'b': Any})
+    def compile(select, input, *regs, s=0, b=0):
+        nregs = DEMUX(select, input, shape={'s': s, 'b': b})
+        one = ONE()
+        nselect = DEMUX(select, one, shape={'s': s, 'b': 1})
+        nnregs = ()
+        PinManager.freePin(one)
+        for i in range(len(regs)):
+            nreg = MUX(nselect[i], regs[i], nregs[i])
+            PinManager.freePin(nselect[i], nregs[i])
+            nnregs += (nreg,)
+        return regs
+
+@template
 class DEMUXP(Gate):
     @implio({'s': Any, 'b': Any}, ('s', 'b'), ('b*2**s',))
     def decorate(select, input, s, b):
@@ -348,16 +362,125 @@ class ALU(Gate):
         PinManager.freePin(incb, carryb)
 
         add, carryFlag = HADD(A, B, shape={'b': b})
-        bsl = BSL(A, B, shape={'b': round(math.log(b, 2))})
-        bsr = BSR(A, B, shape={'b': round(math.log(b, 2))})
-        nd_ = AND(A, B, shape={'b': b})
-        or_ = OR (A, B, shape={'b': b})
-        xor = XOR(A, B, shape={'b': b})
+        bsl            = BSL (A, B, shape={'b': round(math.log(b, 2))})
+        bsr            = BSR (A, B, shape={'b': round(math.log(b, 2))})
+        and_           = AND (A, B, shape={'b': b})
+        or_            = OR  (A, B, shape={'b': b})
+        xor            = XOR (A, B, shape={'b': b})
         
-        ret = MUX(microcode[4:7], A, B, add, bsl, bsr, nd_, or_, xor, shape={'s': 3, 'b': b})
-        PinManager.freePin(add, bsl, bsr, nd_, or_, xor)
+        ret = MUX(microcode[4:7], A, B, add, bsl, bsr, and_, or_, xor, shape={'s': 3, 'b': b})
+        PinManager.freePin(add, bsl, bsr, and_, or_, xor)
 
         nonzeroFlag = OR(ret, shape={'w': b})
         zeroFlag = NOT(nonzeroFlag)
+        negativeFlag = [ret[b - 1]]
+        positiveFlag = NOT(negativeFlag)
         
-        return ret, carryFlag + zeroFlag + nonzeroFlag
+        return ret, carryFlag + zeroFlag + nonzeroFlag + positiveFlag + negativeFlag
+
+@template
+class RAM(Gate):
+    @implio({'b': Any, 's': Any, 'init': 1})
+    def init(b, s, init):
+        CodeManager.defines.append(f'std::bitset<{2**s}> RAM;')
+        CodeManager.code.append('size_t RAMINDEX = 0;')
+
+    @implio({'b': Any, 's': Any}, ('s',), ('b',))
+    def compile(ptr, b, s):
+        CodeManager.code.append(f'RAMINDEX = {" + ".join([f"(pins[{ptr[i]}] << {s})" for i in range(s)])};')
+        ret = []
+        for i in range(b):
+            ret += PinManager.requestPin()
+            CodeManager.code.append(f'pins[{ret[-1]}] = RAM[RAMINDEX + {i}];')
+        return ret
+
+@template
+class CPUMicrocodeLookup(Gate):
+    @implio({'init': 1}, (), ())
+    def init(init):
+        codes = [
+            '00000001000',
+            '00000011001',
+            '00000001001',
+            '01000011001',
+            '00000101001',
+            '00110101001',
+            '11000101001',
+            '00110101000',
+            '00001011001',
+            '10101101001',
+            '00001101001',
+            '10101011001',
+            '00001111001',
+            '10001111001',
+            '00000111001',
+            '00001001001',
+            '00000000000',
+            '00000010001',
+            '00000010010',
+            '00000010011',
+            '00000010100',
+            '00000010101',
+            '00000010110',
+        ]
+        cppcodes = ', '.join([f'0b{code}' for code in codes])
+        CodeManager.defines.append(f'std::bitset<11> CPUMicrocodeLookup[{len(codes)}] = {"{"}{cppcodes}{"}"};')
+        CodeManager.defines.append('size_t CPUMicrocodeLookupIndex = 0;')
+
+    @implio({'b': Any,}, ('b',), ('7', '1', '3',))
+    def compile(opcode, b):
+        CodeManager.code.append(f'CPUMicrocodeLookupIndex = {" + ".join([f"(pins[{opcode[i]}] << {b})" for i in range(b)])};')
+        ret = []
+        for i in range(11):
+            ret += PinManager.requestPin()
+            CodeManager.code.append(f'pins[{ret[-1]}] = CPUMicrocodeLookup[CPUMicrocodeLookupIndex][{i}];')
+        return ret[:7], [ret[7]], ret[8:]
+
+@template
+class CPU(Gate):
+    @implio({'b': Any, 'reg': Any, 'ram': Any})
+    def compile(regs, b, reg, ram):
+        RAM(shape={'b': b, 's': ram, 'init': 1})
+        CPUMicrocodeLookup(shape={'init': 1})
+        
+        zero = ZERO()
+        opCodeLen = 5
+
+        command = RAM(regs[0][:ram], shape={'b': b, 's': ram})
+        ALUMicrocode, incpc, save = CPUMicrocodeLookup(command[:5], shape={'b': 5})
+
+        A = MUX(command[opCodeLen:opCodeLen + reg], *regs, shape={'s': reg, 'b': b})
+        B = MUX(command[opCodeLen + reg:opCodeLen + 2 * reg], *regs, shape={'s': reg, 'b': b})
+
+        ret, flags = ALU(A, B, ALUMicrocode, shape={'b': b})
+        PinManager.freePin(ALUMicrocode, B)
+
+        retCarry    = MUX([regs[1][0]], zero * b, ret, shape={'s': 1, 'b': b})
+        retZero     = MUX([regs[1][1]], zero * b, ret, shape={'s': 1, 'b': b})
+        retNonZero  = MUX([regs[1][2]], zero * b, ret, shape={'s': 1, 'b': b})
+        retPositive = MUX([regs[1][3]], zero * b, ret, shape={'s': 1, 'b': b})
+        retNegative = MUX([regs[1][4]], zero * b, ret, shape={'s': 1, 'b': b})
+        regs[1] = flags + zero * (b - len(flags))
+
+        nA = MUX(save, A, ret, retCarry, retZero, retNonZero, retPositive, retNegative, A, shape={'s': 3, 'b': b})
+        PinManager.freePin(save, A, retCarry, retZero, retNonZero, retPositive, retNegative)
+        A = nA
+
+        regs = list(ADEMUX(command[opCodeLen:opCodeLen + reg], nA, *regs, shape={'s': reg, 'b': b}))
+        PinManager.freePin(nA)
+
+        incregs1, carry = HINC(regs[1], shape={'b': b})
+        PinManager.freePin(carry)
+        regs[1] = MUX(incpc, regs[1], incregs1, shape={'s': 1, 'b': b})
+        PinManager.freePin(incpc, incregs1)
+        
+        PinManager.freePin(zero)
+        return regs
+
+@template
+class CPUP(Gate):
+    @implio({'b': Any, 'reg': Any, 'ram': Any}, ('b*2**reg',), (('b*2**reg',)))
+    def compile(regs, b, reg, ram):
+        regs = list(regs[b * i: b * (i + 1)] for i in range(2**reg))
+        regs = CPU(regs, shape={'b': b, 'reg': reg, 'ram': ram})
+        return flatten(regs)

@@ -33,6 +33,8 @@ class CodeManager:
             CodeManager.defines.append('#define AUTOMATIC')
         elif mode == 'm':
             CodeManager.defines.append('#define MANUAL')
+        elif mode == 'r':
+            CodeManager.defines.append('#define REPEAT')
         else:
             raise f'Unknown mode: {mode}'
 
