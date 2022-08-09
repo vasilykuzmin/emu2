@@ -33,7 +33,7 @@ OpCode| Lookup           |
 00000 | 0000000 1 000 00 | NOP  [0, 0] - NOP
 
 10000 | 0000001 1 100 00 | MOV  [A, B] - Copy B to A
-01000 | 0000000 1 100 00 | SET  [A, N] - Set A to N (N < 2**22)
+01000 | 0000000 1 100 01 | SET  [A, N] - Set A to N (N < 2**22)
 
 
 11000 | 0100001 1 100 10 | INC  [A, 0] - A++
@@ -50,10 +50,10 @@ OpCode| Lookup           |
 01110 | 0000011 1 100 00 | BSL  [A, B] - A = A BSL B
 11110 | 0000100 1 100 00 | BSR  [A, B] - A = A BSR B
 
-00001 | 0000000 0 000 01 | STOP [0, 0] - infinite loop
-10001 | 0000000 0 100 01 | JMP  [0, m] - program counter (register[0]) = m
-01001 | 0000000 0 010 01 | JC   [0, m] - JMP if carry
-11001 | 0000000 0 110 01 | JZ   [0, m] - JMP if zero
-00101 | 0000000 0 001 01 | JNZ  [0, m] - JMP if nonzero
-10101 | 0000000 0 101 01 | JP   [0, m] - JMP if positive
-01101 | 0000000 0 011 01 | JN   [0, m] - JMP if negative
+00001 | 0000000 0 000 00 | STOP [0, 0] - infinite loop
+10001 | 0000000 0 100 10 | JMP  [0, m] - program counter (register[0]) = m
+01001 | 0000000 0 010 10 | JC   [0, m] - JMP if carry
+11001 | 0000000 0 110 10 | JZ   [0, m] - JMP if zero
+00101 | 0000000 0 001 10 | JNZ  [0, m] - JMP if nonzero
+10101 | 0000000 0 101 10 | JP   [0, m] - JMP if positive
+01101 | 0000000 0 011 10 | JN   [0, m] - JMP if negative
