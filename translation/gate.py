@@ -1,13 +1,13 @@
-import code
-from distutils.debug import DEBUG
-import opcode
-from smtpd import DebuggingServer
 from typing import Any
 from template import template, impl
 from pinManager import PinManager
 from codeManager import CodeManager
-from utils import castTuple, flatten
 import math
+
+import sys
+import pathlib
+sys.path.insert(0, str(pathlib.Path().parent.absolute()))
+from utils import castTuple, flatten
 
 class Gate:
     defaultShape = {'b': 1}
@@ -430,13 +430,13 @@ class CPUMicrocodeLookup(Gate):
 '1000111110000',
 '0000011110000',
 '0000100110000',
-'0000000000001',
-'0000000010001',
-'0000000001001',
-'0000000011001',
-'0000000000101',
-'0000000010101',
-'0000000001101',
+'0000000000000',
+'0000000010010',
+'0000000001010',
+'0000000011010',
+'0000000000110',
+'0000000010110',
+'0000000001110',
         ]
 
     @implio({'init': 1}, (), ())
@@ -459,6 +459,7 @@ class CPUMicrocodeLookup(Gate):
 class CPU(Gate):
     @implio({'b': Any, 'reg': Any, 'ram': Any})
     def compile(regs, b, reg, ram):
+        
         RAM(shape={'b': b, 's': ram, 'init': 1})
         CPUMicrocodeLookup(shape={'init': 1})
         

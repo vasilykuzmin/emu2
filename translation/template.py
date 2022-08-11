@@ -1,6 +1,4 @@
-from calendar import c
 from typing import Any
-from collections import defaultdict
 
 class TemplateManager:
     impls = {str: {str: []}}

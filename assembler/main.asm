@@ -1,3 +1,4 @@
 NOP
-JMP 0
 NOP
+NOP
+JMP 1

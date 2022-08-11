@@ -1,5 +1,9 @@
-from os import stat
+
 from pinManager import PinManager
+
+import sys
+import pathlib
+sys.path.insert(0, str(pathlib.Path().parent.absolute()))
 from utils import castTuple
 
 class CodeManager:
