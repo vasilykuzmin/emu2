@@ -1,4 +1,2 @@
-NOP
-NOP
-NOP
-JMP 1
+INC 2
+JMP 0

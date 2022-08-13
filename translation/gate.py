@@ -416,8 +416,8 @@ class CPUMicrocodeLookup(Gate):
     codes = [
             '0000000100000',
 '0000001110000',
-'0000000110001',
-'0100001110010',
+'0000000110010',
+'0100000110010',
 '0000010110000',
 '0011010110000',
 '1100010110000',
@@ -431,12 +431,12 @@ class CPUMicrocodeLookup(Gate):
 '0000011110000',
 '0000100110000',
 '0000000000000',
-'0000000010010',
-'0000000001010',
-'0000000011010',
-'0000000000110',
-'0000000010110',
-'0000000001110',
+'0000100010010',
+'0000100001010',
+'0000100011010',
+'0000100000110',
+'0000100010110',
+'0000100001110',
         ]
 
     @implio({'init': 1}, (), ())
@@ -468,25 +468,31 @@ class CPU(Gate):
 
         command = RAM(regs[0][:ram], shape={'b': b, 's': ram})
         # DEBUGOUTPUT(command, 'command')
-        ALUMicrocode, incpc, save, load = CPUMicrocodeLookup(command[:5], shape={'b': 5})
+        ALUMicrocode, incpc, save, load = CPUMicrocodeLookup(command[:opCodeLen], shape={'b': opCodeLen})
         # DEBUGOUTPUT(ALUMicrocode, 'alu microcode');
         # DEBUGOUTPUT(load, 'load')
 
-        A = MUX(command[opCodeLen:opCodeLen + reg], *regs, shape={'s': reg, 'b': b})
-        B = MUX(command[opCodeLen + reg:opCodeLen + 2 * reg], *regs, shape={'s': reg, 'b': b})
+        Areg = MUX(command[opCodeLen:opCodeLen + reg], *regs, shape={'s': reg, 'b': b})
+        Breg = MUX(command[opCodeLen + reg:opCodeLen + 2 * reg], *regs, shape={'s': reg, 'b': b})
 
-        ACL = command[opCodeLen + reg:] + zero * (reg + opCodeLen)
-        ACH = command[opCodeLen:] + zero * opCodeLen
+        BCL = command[opCodeLen + reg:] + zero * (reg + opCodeLen)
+        BCH = command[opCodeLen:] + zero * opCodeLen
         # DEBUGOUTPUT(ACH, 'ACH')
 
-        nA = MUX(load, A, ACL, ACH, A, shape={'s': 2, 'b': b})
-        PinManager.freePin(A)
-        A = nA
+        # DEBUGOUTPUT(BCL, "BCL")
+        # DEBUGOUTPUT(BCH, "BCH")
+        nB = MUX(load, Breg, BCL, BCH, Breg, shape={'s': 2, 'b': b})
+        PinManager.freePin(Breg)
+        A = Areg
+        B = nB
 
         # DEBUGOUTPUT(A, 'A')
+        # DEBUGOUTPUT(B, 'B')
 
         ret, flags = ALU(A, B, ALUMicrocode, shape={'b': b})
         PinManager.freePin(ALUMicrocode, B)
+
+        # DEBUGOUTPUT(ret, 'aluret')
 
         retCarry    = MUX([regs[1][0]], zero * b, ret, shape={'s': 1, 'b': b})
         retZero     = MUX([regs[1][1]], zero * b, ret, shape={'s': 1, 'b': b})
@@ -497,7 +503,7 @@ class CPU(Gate):
 
         nA = MUX(save, A, ret, retCarry, retZero, retNonZero, retPositive, retNegative, A, shape={'s': 3, 'b': b})
         PinManager.freePin(save, A, retCarry, retZero, retNonZero, retPositive, retNegative)
-        A = nA
+        # DEBUGOUTPUT(nA, 'nA')
 
         regs = list(ADEMUX(command[opCodeLen:opCodeLen + reg], nA, *regs, shape={'s': reg, 'b': b}))
         PinManager.freePin(nA)
