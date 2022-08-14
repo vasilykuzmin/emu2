@@ -2,6 +2,7 @@ from typing import Any
 from template import template, impl
 from pinManager import PinManager
 from codeManager import CodeManager
+from opcode import OCCPU, len2
 import math
 
 import sys
@@ -305,10 +306,6 @@ class DEMUX(Gate):
 class ADEMUX(Gate):
     @implio({'s': Any, 'b': Any})
     def compile(select, input, *regs, s=0, b=0):
-        # DEBUGOUTPUT(select, 'ADEMUX select')
-        # DEBUGOUTPUT(input, 'ADEMUX input')
-        # for i in range(len(regs)):
-        #     DEBUGOUTPUT(regs[i], f'ADEMUX REG {i}')
         nregs = DEMUX(select, input, shape={'s': s, 'b': b})
         one = ONE()
         nselect = DEMUX(select, one, shape={'s': s, 'b': 1})
@@ -319,8 +316,6 @@ class ADEMUX(Gate):
             PinManager.freePin(nselect[i], nregs[i])
             nnregs += (nreg,)
         
-        # for i in range(len(nnregs)):
-        #     DEBUGOUTPUT(nnregs[i], f'ADEMUX OUT {i}')
         return nnregs
 
 @template
@@ -413,47 +408,27 @@ class RAM(Gate):
 
 @template
 class CPUMicrocodeLookup(Gate):
-    codes = [
-            '0000000100000',
-'0000001110000',
-'0000000110010',
-'0100000110010',
-'0000010110000',
-'0011010110000',
-'1100010110000',
-'0011010100000',
-'0000101110000',
-'1010110110000',
-'0000110110000',
-'1010101110000',
-'0000111110000',
-'1000111110000',
-'0000011110000',
-'0000100110000',
-'0000000000000',
-'0000100010010',
-'0000100001010',
-'0000100011010',
-'0000100000110',
-'0000100010110',
-'0000100001110',
-        ]
-
     @implio({'init': 1}, (), ())
     def init(init):
+        CPUMicrocodeLookup.codes = [OCCPU._render(i) for i in range(len(OCCPU))]
         cppcodes = ', '.join([f'0b{code[::-1]}' for code in CPUMicrocodeLookup.codes])
         CodeManager.defines.append(f'std::bitset<{len(CPUMicrocodeLookup.codes[0])}> CPUMicrocodeLookup[{len(CPUMicrocodeLookup.codes)}] = {"{"}{cppcodes}{"}"};')
         CodeManager.defines.append('size_t CPUMicrocodeLookupIndex = 0;')
 
-    @implio({'b': Any,}, ('b',), ('7', '1', '3',))
+    @implio({'b': Any,}, ('b',), (str(l) for l in OCCPU._shape()))
     def compile(opcode, b):
         CodeManager.code.append(f'CPUMicrocodeLookupIndex = {" + ".join([f"(pins[{opcode[i]}] << {i})" for i in range(b)])};')
-        # CodeManager.code.append('std::cout << "CPUMicrocodeLookupIndex " << CPUMicrocodeLookupIndex << std::endl;')
-        ret = []
+        pinret = []
         for i in range(len(CPUMicrocodeLookup.codes[0])):
-            ret += PinManager.requestPin()
-            CodeManager.code.append(f'pins[{ret[-1]}] = CPUMicrocodeLookup[CPUMicrocodeLookupIndex][{i}];')
-        return ret[0:7], [ret[7]], ret[8:11], ret[11:13]
+            pinret += PinManager.requestPin()
+            CodeManager.code.append(f'pins[{pinret[-1]}] = CPUMicrocodeLookup[CPUMicrocodeLookupIndex][{i}];')
+        ret = ()
+        i = 0
+        print(list(OCCPU._shape()))
+        for l in OCCPU._shape():
+            ret += (pinret[i:i + l],)
+            i += l
+        return ret
 
 @template
 class CPU(Gate):
@@ -468,7 +443,8 @@ class CPU(Gate):
 
         command = RAM(regs[0][:ram], shape={'b': b, 's': ram})
         # DEBUGOUTPUT(command, 'command')
-        ALUMicrocode, incpc, save, load = CPUMicrocodeLookup(command[:opCodeLen], shape={'b': opCodeLen})
+        load, ALUMicrocode, save, incpc = CPUMicrocodeLookup(command[:opCodeLen], shape={'b': opCodeLen})
+        print(load, ALUMicrocode, save, incpc)
         # DEBUGOUTPUT(ALUMicrocode, 'alu microcode');
         # DEBUGOUTPUT(load, 'load')
 
