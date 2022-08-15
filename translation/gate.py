@@ -2,7 +2,7 @@ from typing import Any
 from template import template, impl
 from pinManager import PinManager
 from codeManager import CodeManager
-from opcode import OCCPU, len2
+from translation.opcode import OCCPU
 import math
 
 import sys
@@ -399,7 +399,6 @@ class RAM(Gate):
     @implio({'b': Any, 's': Any}, ('s',), ('b',))
     def compile(ptr, b, s):
         CodeManager.code.append(f'RAMINDEX = {" + ".join([f"(pins[{ptr[i]}] << {i})" for i in range(s)])};')
-        # CodeManager.code.append('std::cout << RAMINDEX << std::endl;')
         ret = []
         for i in range(b):
             ret += PinManager.requestPin()
@@ -410,12 +409,14 @@ class RAM(Gate):
 class CPUMicrocodeLookup(Gate):
     @implio({'init': 1}, (), ())
     def init(init):
-        CPUMicrocodeLookup.codes = [OCCPU._render(i) for i in range(len(OCCPU))]
+        CPUMicrocodeLookup.codes = [OCCPU[i] for i in range(len(OCCPU))]
         cppcodes = ', '.join([f'0b{code[::-1]}' for code in CPUMicrocodeLookup.codes])
         CodeManager.defines.append(f'std::bitset<{len(CPUMicrocodeLookup.codes[0])}> CPUMicrocodeLookup[{len(CPUMicrocodeLookup.codes)}] = {"{"}{cppcodes}{"}"};')
         CodeManager.defines.append('size_t CPUMicrocodeLookupIndex = 0;')
 
-    @implio({'b': Any,}, ('b',), (str(l) for l in OCCPU._shape()))
+    oshape = (s if type(s) == int else sum(s) for s in OCCPU._shape())
+    
+    @implio({'b': Any,}, ('b',), (str(l) for l in oshape))
     def compile(opcode, b):
         CodeManager.code.append(f'CPUMicrocodeLookupIndex = {" + ".join([f"(pins[{opcode[i]}] << {i})" for i in range(b)])};')
         pinret = []
@@ -424,8 +425,7 @@ class CPUMicrocodeLookup(Gate):
             CodeManager.code.append(f'pins[{pinret[-1]}] = CPUMicrocodeLookup[CPUMicrocodeLookupIndex][{i}];')
         ret = ()
         i = 0
-        print(list(OCCPU._shape()))
-        for l in OCCPU._shape():
+        for l in CPUMicrocodeLookup.oshape:
             ret += (pinret[i:i + l],)
             i += l
         return ret
@@ -444,11 +444,15 @@ class CPU(Gate):
         command = RAM(regs[0][:ram], shape={'b': b, 's': ram})
         # DEBUGOUTPUT(command, 'command')
         load, ALUMicrocode, save, incpc = CPUMicrocodeLookup(command[:opCodeLen], shape={'b': opCodeLen})
-        print(load, ALUMicrocode, save, incpc)
-        # DEBUGOUTPUT(ALUMicrocode, 'alu microcode');
         # DEBUGOUTPUT(load, 'load')
+        # DEBUGOUTPUT(ALUMicrocode, 'alu microcode')
+        # DEBUGOUTPUT(save, 'save')
+        # DEBUGOUTPUT(incpc, 'incpc')
 
-        Areg = MUX(command[opCodeLen:opCodeLen + reg], *regs, shape={'s': reg, 'b': b})
+        Aind = command[opCodeLen:opCodeLen + reg]
+        Aind = MUX(load, Aind, Aind, zero * reg, zero * reg, shape={'s': 2, 'b': reg})
+
+        Areg = MUX(Aind, *regs, shape={'s': reg, 'b': b})
         Breg = MUX(command[opCodeLen + reg:opCodeLen + 2 * reg], *regs, shape={'s': reg, 'b': b})
 
         BCL = command[opCodeLen + reg:] + zero * (reg + opCodeLen)
@@ -457,10 +461,9 @@ class CPU(Gate):
 
         # DEBUGOUTPUT(BCL, "BCL")
         # DEBUGOUTPUT(BCH, "BCH")
-        nB = MUX(load, Breg, BCL, BCH, Breg, shape={'s': 2, 'b': b})
+        A = MUX(load, Areg, Areg, Areg, zero * b, shape={'s': 2, 'b': b})
+        B = MUX(load, Breg, BCL , BCH , zero * b, shape={'s': 2, 'b': b})
         PinManager.freePin(Breg)
-        A = Areg
-        B = nB
 
         # DEBUGOUTPUT(A, 'A')
         # DEBUGOUTPUT(B, 'B')
@@ -481,8 +484,10 @@ class CPU(Gate):
         PinManager.freePin(save, A, retCarry, retZero, retNonZero, retPositive, retNegative)
         # DEBUGOUTPUT(nA, 'nA')
 
-        regs = list(ADEMUX(command[opCodeLen:opCodeLen + reg], nA, *regs, shape={'s': reg, 'b': b}))
-        PinManager.freePin(nA)
+        # DEBUGOUTPUT(regs[0], 'cp')
+        # DEBUGOUTPUT(nA, 'new a')
+        regs = list(ADEMUX(Aind, nA, *regs, shape={'s': reg, 'b': b}))
+        PinManager.freePin(Aind, nA)
         # DEBUGOUTPUT(regs[0], 'cp')
 
         incregs1, carry = HINC(regs[0], shape={'b': b})

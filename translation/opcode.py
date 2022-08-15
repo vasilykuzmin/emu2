@@ -1,65 +1,58 @@
-#!/bin/python3
-
 import math
+
+import sys, pathlib
+sys.path.insert(0, str(pathlib.Path().parent.absolute()))
+from utils import tobin
+
 
 def len2(o):
     return o.__len2__()
 
 class EnumMeta(type):
-    def __getitem__(self, opCode):
-        if type(opCode) == int:
-            return (self, list(self._enum.items())[opCode][1])
-        elif type(opCode) == str:
-            return (self, self._enum[opCode][0])
+    @staticmethod
+    def _recRender(obj):
+        if type(obj) == str:
+            return obj
         else:
-            raise f'Unknown opCode key: {opCode}'
+            return ''.join(EnumMeta._recRender(nobj) for nobj in obj)
     
-    def __iter__(self):
-        return iter(self._enum.values())
-    
-    def _bin(b, l):
-        return bin(b)[2:].zfill(l)
-
-    def _recRender(value):
-        if type(value[1]) == tuple:
-            return ''.join(EnumMeta._recRender(val) for val in value[1])
+    def _recShape(obj):
+        if type(obj) == str:
+            return len(obj)
         else:
-            return bin(value[1])[2:].zfill(len2(value[0]))[::-1]
+            return tuple(EnumMeta._recShape(nobj) for nobj in obj)
 
-    def _render(self, opCode):
-        value = self[opCode]
-        return EnumMeta._recRender(value)
-    
-    def _shape(self):
-        value = self[0]
-        return (len2(value[1]),) if type(value[1]) != tuple else (len(EnumMeta._recRender(val)) for val in value[1])
-    
     def __new__(cls, clsname, superclasses, attributedict):
         cls = type.__new__(cls, clsname, superclasses, attributedict)
-        if type(cls._type) != tuple:
-            cls._type = (cls._type,)
         if type(cls._enum) == list:
-            cls._enum = {cls._enum[i]: i for i in range(len(cls._enum))}
-        for name, value in cls._enum.items():
-            value = (cls, value)
+            cls._render = {cls._enum[i]: tobin(i, len2(cls)) for i in range(len(cls._enum))}
+        else:
+            cls._render = {name: EnumMeta._recRender(value) for name, value in cls._enum.items()}
+        for name, value in cls._render.items():
             setattr(cls, name, value)
         return cls
     
-
-    def __len__(self):
-        return len(self._enum)
+    def __len__(cls):
+        return len(cls._enum)
     
-    def __len2__(self):
-        return math.ceil(math.log2(len(self._enum)))
+    def __len2__(cls):
+        return math.ceil(math.log2(len(cls._enum)))
+
+    def __getitem__(self, opCode):
+        if type(opCode) == int:
+            return list(self._render.values())[opCode]
+        elif type(opCode) == str:
+            return self._render[opCode]
+        else:
+            raise Exception(f'Unknown opCode key: {opCode}')
+
+    def _shape(self):
+        value = list(self._enum.values())[0]
+        return EnumMeta._recShape(value)
+
 
 class Enum(metaclass=EnumMeta):
-    _type = int
     _enum = {}
-
-    def __new__(self, *args) -> None:
-        argtype = tuple(arg[0] for arg in args)
-        assert argtype == self._type, f'Init types mismatch: expected: {self._type}, got {argtype}'
-        return (self.__qualname__, args)
 
 class BitEnum(Enum):
     _enum = ['OFF', 'ON']
@@ -85,7 +78,6 @@ class OCALU(Enum):
             'OR',
             'XOR',
         ]
-    _type = (ANOT, AINC, BNOT, BINC, OPC,)
 
 class OCCPU(Enum):
     class LOADALU(Enum):
@@ -109,10 +101,8 @@ class OCCPU(Enum):
     class PCINC(BitEnum):
         pass
     
-    _type = (LOADALU, OCALU, SAVEALU, PCINC)
     _enum = {
-        'ADD': (LOADALU.AB, OCALU(OCALU.ANOT.OFF, OCALU.AINC.OFF, OCALU.BNOT.OFF, OCALU.BINC.OFF, OCALU.OPC.ADD), SAVEALU.SAVE, PCINC.ON),
+        'NOP': (LOADALU.OC, (OCALU.ANOT.OFF, OCALU.AINC.OFF, OCALU.BNOT.OFF, OCALU.BINC.OFF, OCALU.OPC.A  ), SAVEALU.NOTSAVE, PCINC.ON ),
+        'ADD': (LOADALU.AB, (OCALU.ANOT.OFF, OCALU.AINC.OFF, OCALU.BNOT.OFF, OCALU.BINC.OFF, OCALU.OPC.ADD), SAVEALU.SAVE   , PCINC.ON ),
+        'JMP': (LOADALU.OC, (OCALU.ANOT.OFF, OCALU.AINC.OFF, OCALU.BNOT.OFF, OCALU.BINC.OFF, OCALU.OPC.B  ), SAVEALU.SAVE   , PCINC.OFF),
     }
-
-# print(OCCPU.ADD)
-print(OCCPU._render(0))

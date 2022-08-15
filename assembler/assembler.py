@@ -4,40 +4,37 @@ import sys
 import pathlib
 sys.path.insert(0, str(pathlib.Path().parent.absolute()))
 from utils import castTuple
+from translation.opcode import OCCPU, len2
 
 class Assembler:
-    def tobin(self, num, *args, mode='reg'):
+    def tobin(self, num, limit=None):
         num = int(num)
-        if mode == 'reg':
-            b = self.reg
-        elif mode == 'manual':
-            b = args[0]
+        if limit is None:
+            limit = self.reg
 
-        if num > 2 ** b:
+        if num > 2 ** limit:
             raise 'Number is too large'
             
-        return ''.join('1' if num & (2 ** i) else '0' for i in range(b))
+        return ''.join('1' if num & (2 ** i) else '0' for i in range(limit))
 
     def caempty(self, opCode):
         rest = '0' * (self.b - self.opCodeLen)
-        if len(self.tokens) >= 3:
-            rest = self.tobin(self.tokens[3], self.b - self.opCodeLen, mode='manual')
+        if len(self.tokens) > 1:
+            rest = self.tobin(self.tokens[1], self.b - self.opCodeLen)
         self.code.append(opCode + rest)
     
     def ca1reg(self, opCode):
         rest = '0' * (self.b - self.opCodeLen - self.reg)
-        if len(self.tokens) >= 3:
-            rest = self.tobin(self.tokens[3], self.b - self.opCodeLen - self.reg, mode='manual')
+        if len(self.tokens) > 2:
+            rest = self.tobin(self.tokens[2], self.b - self.opCodeLen - self.reg)
         self.code.append(opCode + self.tobin(self.tokens[1]) + rest)
 
     def ca2reg(self, opCode):
         rest = '0' * (self.b - self.opCodeLen - 2 * self.reg)
-        if len(self.tokens) >= 3:
-            rest = self.tobin(self.tokens[3], self.b - self.opCodeLen - 2 * self.reg, mode='manual')
+        if len(self.tokens) > 3:
+            rest = self.tobin(self.tokens[3], self.b - self.opCodeLen - 2 * self.reg)
         self.code.append(opCode + self.tobin(self.tokens[1]) + self.tobin(self.tokens[2]) + rest)
-    
-    def cajmp(self, opcode):
-        self.code.append(opcode + '0' * self.reg + self.tobin(self.tokens[1], self.b - self.opCodeLen - self.reg, mode='manual'))
+
 
 
     def compile(self, ifilename, ofilename, b=16, reg=5):
@@ -50,6 +47,8 @@ class Assembler:
                 if self.tokens[0] in self.opCodes.keys():
                     fun, args = self.opCodes[self.tokens[0]]
                     fun(*castTuple(args))
+                else:
+                    raise Exception(f'No such token: {self.tokens[0]}')
 
         with open(ofilename, 'w') as f:
             f.writelines(self.code)
@@ -58,32 +57,13 @@ class Assembler:
         self.b = b
         self.reg = reg
         self.code = []
-        self.opCodeLen = 5
-        self.opCodes = {
-                'NOP' : (self.caempty, '00000'),
-                'MOV' : (self.ca2reg , '10000'),
-                'SET' : (self.ca1reg , '01000'),
-                'INC' : (self.ca1reg , '11000'),
-                'ADD' : (self.ca2reg , '00100'),
-                'SUB' : (self.ca2reg , '10100'),
-                'ASUB': (self.ca2reg , '01100'),
-                'NSUB': (self.ca2reg , '11100'),
-                'AND' : (self.ca2reg , '00010'),
-                'NAND': (self.ca2reg , '10010'),
-                'OR'  : (self.ca2reg , '01010'),
-                'NOR' : (self.ca2reg , '11010'),
-                'XOR' : (self.ca2reg , '00110'),
-                'XNOR': (self.ca2reg , '10110'),
-                'BSL' : (self.ca2reg , '01110'),
-                'BSR' : (self.ca2reg , '11110'),
-                'STOP': (self.caempty, '00001'),
-                'JMP' : (self.cajmp  , '10001'),
-                'JC'  : (self.cajmp  , '01001'),
-                'JZ'  : (self.cajmp  , '11001'),
-                'JNZ' : (self.cajmp  , '00101'),
-                'JP'  : (self.cajmp  , '10101'),
-                'JN'  : (self.cajmp  , '01101'),
-            }
+        self.opCodeLen = len2(OCCPU)
+        self.opCodes = {}
+        _opcode = 0
+        for name, value in OCCPU._enum.items():
+            load = value[0]
+            self.opCodes[name] = (self.ca2reg if load == 0 else (self.ca1reg if load == 1 else self.caempty), self.tobin(_opcode, limit=self.opCodeLen))
+            _opcode += 1
 
         self.compile(ifilename, ofilename)
 
