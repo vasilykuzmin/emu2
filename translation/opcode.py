@@ -80,16 +80,25 @@ class OCALU(Enum):
         ]
 
 class OCCPU(Enum):
-    class LOADALU(Enum):
+    class ALUIN(Enum):
         _enum = [
             'AB',
             'AC',
             'OC',
+            'AbC',
         ]
-    
-    class SAVEALU(Enum):
+    class RAMIN(Enum):
         _enum = [
-            'NOTSAVE',
+            'NO',
+            'ZERO',
+            'A',
+            'B',
+        ]
+
+    
+    class ALUOUT(Enum):
+        _enum = [
+            'NO',
             'SAVE',
             'CARRY',
             'ZERO',
@@ -98,11 +107,24 @@ class OCCPU(Enum):
             'NEGATIVE',
         ]
 
-    class PCINC(BitEnum):
-        pass
+    class RAMOUT(Enum):
+        _enum = [
+            'NO',
+            'ZERO',
+            'A',
+            'B',
+        ]
+
+    class PCINC(Enum):
+        _enum = [
+            'P0',
+            'P1',
+            'P2',
+            'P3',
+        ]
     
     _enum = {
-        'NOP': (LOADALU.OC, (OCALU.ANOT.OFF, OCALU.AINC.OFF, OCALU.BNOT.OFF, OCALU.BINC.OFF, OCALU.OPC.A  ), SAVEALU.NOTSAVE, PCINC.ON ),
-        'ADD': (LOADALU.AB, (OCALU.ANOT.OFF, OCALU.AINC.OFF, OCALU.BNOT.OFF, OCALU.BINC.OFF, OCALU.OPC.ADD), SAVEALU.SAVE   , PCINC.ON ),
-        'JMP': (LOADALU.OC, (OCALU.ANOT.OFF, OCALU.AINC.OFF, OCALU.BNOT.OFF, OCALU.BINC.OFF, OCALU.OPC.B  ), SAVEALU.SAVE   , PCINC.OFF),
+        'NOP': (ALUIN.OC, RAMIN.NO, (OCALU.ANOT.OFF, OCALU.AINC.OFF, OCALU.BNOT.OFF, OCALU.BINC.OFF, OCALU.OPC.A  ), ALUOUT.NO     , RAMOUT.NO, PCINC.P1),
+        'ADD': (ALUIN.AB, RAMIN.NO, (OCALU.ANOT.OFF, OCALU.AINC.OFF, OCALU.BNOT.OFF, OCALU.BINC.OFF, OCALU.OPC.ADD), ALUOUT.SAVE   , RAMOUT.NO, PCINC.P1),
+        'JMP': (ALUIN.OC, RAMIN.NO, (OCALU.ANOT.OFF, OCALU.AINC.OFF, OCALU.BNOT.OFF, OCALU.BINC.OFF, OCALU.OPC.B  ), ALUOUT.SAVE   , RAMOUT.NO, PCINC.P0),
     }

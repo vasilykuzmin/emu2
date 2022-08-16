@@ -2,7 +2,7 @@ from typing import Any
 from template import template, impl
 from pinManager import PinManager
 from codeManager import CodeManager
-from translation.opcode import OCCPU
+from translation.opcode import OCCPU, len2
 import math
 
 import sys
@@ -220,20 +220,20 @@ class HINC(Gate):
     @implio({'b': Any,}, ('b',), ('b', '1'))
     def parallel(input, b):
         sum1, carry = HINC(input[:b // 2], shape={'b':b // 2})
-        sum2, carry2 = INC(input[b // 2:], carry, shape={'b': b - b // 2})
+        sum2, carry2 = FINC(input[b // 2:], carry, shape={'b': b - b // 2})
         PinManager.freePin(carry)
         return sum1 + sum2, carry2
     
     @implio({'b': 1,}, ('1', '1'), ('1', '1'))
     def compile(input, b):
-        return INC(input, ONE())
+        return FINC(input, ONE())
 
 @template
-class INC(Gate):
+class FINC(Gate):
     @implio({'b': Any,}, ('b',), ('b', '1'))
     def parallel(input, carry, b):
-        sum1, carry = INC(input[:b // 2], carry, shape={'b':b // 2})
-        sum2, carry2 = INC(input[b // 2:], carry, shape={'b': b - b // 2})
+        sum1, carry = FINC(input[:b // 2], carry, shape={'b':b // 2})
+        sum2, carry2 = FINC(input[b // 2:], carry, shape={'b': b - b // 2})
         PinManager.freePin(carry)
         return sum1 + sum2, carry2
     
@@ -355,7 +355,7 @@ class BSR(Gate):
 @template
 class ALU(Gate):
     @implio({'b': Any}, ('b', 'b', '7'), ('b', '3'))
-    def compile(A, B, microcode, b):
+    def compile(microcode, A, B, b):
         nota = NOT(A, shape={'b': b})
         A = MUX([microcode[0]], A, nota, shape={'s': 1, 'b': b})
         PinManager.freePin(nota)
@@ -396,14 +396,19 @@ class RAM(Gate):
         CodeManager.defines.append(f'std::bitset<{b*2**s}> RAM;')
         CodeManager.code.append('size_t RAMINDEX = 0;')
 
-    @implio({'b': Any, 's': Any}, ('s',), ('b',))
-    def compile(ptr, b, s):
+    @implio({'b': Any, 's': Any, 'r': 1}, ('s',), ('b',))
+    def read(ptr, b, s, r):
         CodeManager.code.append(f'RAMINDEX = {" + ".join([f"(pins[{ptr[i]}] << {i})" for i in range(s)])};')
         ret = []
         for i in range(b):
             ret += PinManager.requestPin()
             CodeManager.code.append(f'pins[{ret[-1]}] = RAM[{b} * RAMINDEX + {i}];')
         return ret
+    
+    @implio({'b': Any, 's': Any, 'w': 1}, ('s', 'b',), ())
+    def write(ptr, val, b, s, w):
+        CodeManager.code.append(f'RAMINDEX = {" + ".join([f"(pins[{ptr[i]}] << {i})" for i in range(s)])};')
+        [CodeManager.code.append(f'RAM[{b} * RAMINDEX + {i}] = pins[{val[i]}];') for i in range(b)]
 
 @template
 class CPUMicrocodeLookup(Gate):
@@ -431,71 +436,115 @@ class CPUMicrocodeLookup(Gate):
         return ret
 
 @template
+class CPUALUIN(Gate):
+    @implio({'b': Any, 'reg': Any, 'opcodeLen': Any})
+    def compile(microcode, command, command2, regs, b, reg, opcodeLen):
+        zero = ZERO()
+
+        Aind = command[opcodeLen:opcodeLen + reg]
+        Aind = MUX(microcode, Aind, Aind, zero * reg, Aind, shape={'s': 2, 'b': reg})
+        Areg = MUX(Aind, *regs, shape={'s': reg, 'b': b})
+
+        Bind = command[opcodeLen + reg:opcodeLen + 2 * reg]
+        Breg_ = MUX(Bind, *regs, shape={'s': reg, 'b': b})
+        Breg = MUX(microcode, Breg_, command[opcodeLen + reg:] + zero * (opcodeLen + reg), command[opcodeLen:] + zero * opcodeLen, command2, shape={'s': 2, 'b': b})
+
+        PinManager.freePin(zero, Breg_)
+        return Aind, Areg, Bind, Breg
+
+@template
+class CPURAMIN(Gate):
+    @implio({'b': Any, 'ram': Any})
+    def compile(microcode, Areg, Breg, trash, b, ram):
+        zero = ZERO()
+        A = RAM(Areg, shape={'b': b, 's': ram, 'r': 1})
+        B = RAM(Breg, shape={'b': b, 's': ram, 'r': 1})
+        ret = MUX(microcode, trash, A, B, zero * b, shape={'s': 2, 'b': b})
+        PinManager.freePin(A, B)
+        return ret
+
+@template
+class CPUALUOUT(Gate):
+    @implio({'b': Any, 'reg': Any})
+    def compile(microcode, ret, Aind, regs, b, reg):
+        zero = ZERO()
+        regVal = MUX(Aind, *regs, shape={'s': reg, 'b': b})
+        retCarry    = MUX([regs[CPU.flagInd][0]], regVal, ret, shape={'s': 1, 'b': b})
+        retZero     = MUX([regs[CPU.flagInd][1]], regVal, ret, shape={'s': 1, 'b': b})
+        retNonZero  = MUX([regs[CPU.flagInd][2]], regVal, ret, shape={'s': 1, 'b': b})
+        retPositive = MUX([regs[CPU.flagInd][3]], regVal, ret, shape={'s': 1, 'b': b})
+        retNegative = MUX([regs[CPU.flagInd][4]], regVal, ret, shape={'s': 1, 'b': b})
+        regVal = MUX(microcode, regVal, ret, retCarry, retZero, retNonZero, retPositive, retNegative, zero * b, shape={'s': 3, 'b': b})
+        PinManager.freePin(zero, retCarry, retZero, retNonZero, retPositive, retNegative)
+        regs = ADEMUX(Aind, regVal, *regs, shape={'s': reg, 'b': b})
+        PinManager.freePin(regVal)
+        return regs
+
+@template
+class CPURAMOUT(Gate):
+    @implio({'b': Any, 'ram': Any,})
+    def compile(microcode, trash, Areg, Breg, b, ram):
+        zero = ZERO()
+        ptr = MUX(microcode, zero * b, zero * b, Areg, Breg, shape={'s': 2, 'b': b})
+        pram = RAM(ptr, shape={'b': b, 's': ram, 'r': 1})
+
+        val = MUX(microcode, pram, zero * b, trash, trash, shape={'s': 2, 'b': b})
+
+        RAM(ptr, val, shape={'b': b, 's': ram, 'w': 1})
+
+        PinManager.freePin(zero, ptr, pram, val)
+
+@template
+class CPUPCINC(Gate):
+    @implio({'b': Any})
+    def compile(microcode, pc, b):
+        zero = ZERO()
+        ret, _ = HADD(pc, microcode + zero * (b - len(microcode)), shape={'b': b})
+        PinManager.freePin(zero, _)
+        return ret
+
+@template
 class CPU(Gate):
+    opCodeLen = len2(OCCPU)
+    pcInd = 0
+    trashInd = 1
+    flagInd = 2
+
     @implio({'b': Any, 'reg': Any, 'ram': Any})
     def compile(regs, b, reg, ram):
-        
+
         RAM(shape={'b': b, 's': ram, 'init': 1})
         CPUMicrocodeLookup(shape={'init': 1})
+
+        pc = regs[CPU.pcInd]
+        pcinc_, _ = HINC(pc, shape={'b': b})
+        PinManager.freePin(_)
+        command  = RAM(pc    [:ram], shape={'b': b, 's': ram, 'r': 1})
+        command2 = RAM(pcinc_[:ram], shape={'b': b, 's': ram, 'r': 1})
+
+        aluin, ramin, alu, aluout, ramout, pcinc = CPUMicrocodeLookup(command[:CPU.opCodeLen], shape={'b': CPU.opCodeLen})
+
+        Aind, Areg, Bind, Breg = CPUALUIN(aluin, command, command2, regs, shape={'b': b, 'reg': reg, 'opcodeLen': CPU.opCodeLen})
+
+        regs[CPU.trashInd] = CPURAMIN(ramin, Areg, Breg, regs[CPU.trashInd], shape={'b': b, 'ram': ram})
         
-        zero = ZERO()
-        opCodeLen = 5
+        PinManager.freePin(Areg, Bind, Breg, ramin)
+        Aind, Areg, Bind, Breg = CPUALUIN(aluin, command, command2, regs, shape={'b': b, 'reg': reg, 'opcodeLen': CPU.opCodeLen})
+        PinManager.freePin(aluin)
 
-        command = RAM(regs[0][:ram], shape={'b': b, 's': ram})
-        # DEBUGOUTPUT(command, 'command')
-        load, ALUMicrocode, save, incpc = CPUMicrocodeLookup(command[:opCodeLen], shape={'b': opCodeLen})
-        # DEBUGOUTPUT(load, 'load')
-        # DEBUGOUTPUT(ALUMicrocode, 'alu microcode')
-        # DEBUGOUTPUT(save, 'save')
-        # DEBUGOUTPUT(incpc, 'incpc')
+        aluret, flags = ALU(alu, Areg, Breg, shape={'b': b})
+        regs[CPU.flagInd][:len(flags)] = flags
+        PinManager.freePin(alu)
 
-        Aind = command[opCodeLen:opCodeLen + reg]
-        Aind = MUX(load, Aind, Aind, zero * reg, zero * reg, shape={'s': 2, 'b': reg})
+        nregs = list(CPUALUOUT(aluout, aluret, Aind, regs, shape={'b': b, 'reg': reg}))
+        PinManager.freePin(aluout, Aind, regs[CPU.trashInd], regs[CPU.flagInd])
+        regs = nregs
 
-        Areg = MUX(Aind, *regs, shape={'s': reg, 'b': b})
-        Breg = MUX(command[opCodeLen + reg:opCodeLen + 2 * reg], *regs, shape={'s': reg, 'b': b})
+        CPURAMOUT(ramout, regs[CPU.trashInd], Areg, Breg, shape={'b': b, 'ram': ram})
+        PinManager.freePin(ramout, Areg, Breg)
 
-        BCL = command[opCodeLen + reg:] + zero * (reg + opCodeLen)
-        BCH = command[opCodeLen:] + zero * opCodeLen
-        # DEBUGOUTPUT(ACH, 'ACH')
-
-        # DEBUGOUTPUT(BCL, "BCL")
-        # DEBUGOUTPUT(BCH, "BCH")
-        A = MUX(load, Areg, Areg, Areg, zero * b, shape={'s': 2, 'b': b})
-        B = MUX(load, Breg, BCL , BCH , zero * b, shape={'s': 2, 'b': b})
-        PinManager.freePin(Breg)
-
-        # DEBUGOUTPUT(A, 'A')
-        # DEBUGOUTPUT(B, 'B')
-
-        ret, flags = ALU(A, B, ALUMicrocode, shape={'b': b})
-        PinManager.freePin(ALUMicrocode, B)
-
-        # DEBUGOUTPUT(ret, 'aluret')
-
-        retCarry    = MUX([regs[1][0]], zero * b, ret, shape={'s': 1, 'b': b})
-        retZero     = MUX([regs[1][1]], zero * b, ret, shape={'s': 1, 'b': b})
-        retNonZero  = MUX([regs[1][2]], zero * b, ret, shape={'s': 1, 'b': b})
-        retPositive = MUX([regs[1][3]], zero * b, ret, shape={'s': 1, 'b': b})
-        retNegative = MUX([regs[1][4]], zero * b, ret, shape={'s': 1, 'b': b})
-        regs[1] = flags + zero * (b - len(flags))
-
-        nA = MUX(save, A, ret, retCarry, retZero, retNonZero, retPositive, retNegative, A, shape={'s': 3, 'b': b})
-        PinManager.freePin(save, A, retCarry, retZero, retNonZero, retPositive, retNegative)
-        # DEBUGOUTPUT(nA, 'nA')
-
-        # DEBUGOUTPUT(regs[0], 'cp')
-        # DEBUGOUTPUT(nA, 'new a')
-        regs = list(ADEMUX(Aind, nA, *regs, shape={'s': reg, 'b': b}))
-        PinManager.freePin(Aind, nA)
-        # DEBUGOUTPUT(regs[0], 'cp')
-
-        incregs1, carry = HINC(regs[0], shape={'b': b})
-        PinManager.freePin(carry)
-        regs[0] = MUX(incpc, regs[0], incregs1, shape={'s': 1, 'b': b})
-        PinManager.freePin(incpc, incregs1)
+        regs[CPU.pcInd] = CPUPCINC(pcinc, regs[CPU.pcInd], shape={'b': b})
         
-        PinManager.freePin(zero)
         return regs
 
 @template
