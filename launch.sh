@@ -3,13 +3,13 @@ b=16
 reg=2
 ram=16
 
-./assembler/assembler.py ./assembler/main.asm ./ram.bin $b $reg
+./assembler/assembler.py ./assembler/main.asm ./tmp/ram.bin $b $reg
 if [ $? != 0 ]
 then
     exit 1
 fi
 
-./translation/translator.py $b $reg $ram ./ram.bin
+./translation/translator.py $b $reg $ram ./tmp/ram.bin ./tmp/translation.hpp
 if [ $? != 0 ]
 then
     exit 1
@@ -20,7 +20,7 @@ then
     exit 1
 fi
 # clear
-./main
+./tmp/main
 if [ $? != 0 ]
 then
     exit 1

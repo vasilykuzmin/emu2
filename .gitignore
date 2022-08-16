@@ -1,5 +1,4 @@
 .vscode
 __pycache__
-translation.hpp
-main
-ram.bin
+tmp/*
+!tmp/.gitkeep
