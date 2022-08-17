@@ -24,53 +24,56 @@ class Assembler:
         self.code.append(tobin(tokens[2], self.b))
 
 
+    def handleToken(self, token):
+        type_ = 'R' if token[0] == 'R' else ('M' if token[0] == '*' else 'C')
+        token = token if type_ == 'C' else token[1:]
+        if '__' + token + str(self.macronum) in self.tags.keys():
+            token = str(self.tags['__' + token + str(self.macronum)])
+        if token in self.tags.keys():
+            token = str(self.tags[token])
+        if not token.isnumeric():
+            token = '0'
+        return type_, token
+
     def emptyHandler(self, tokens):
         self.OC(self.rawOpCodes[tokens[0]], [0, 0])
     
     def OMCHandler(self, tokens):
-        atype = 'R' if tokens[1][0] == 'R' else ('M' if tokens[1][0] == '*' else 'C')
-        btype = 'R' if tokens[2][0] == 'R' else ('M' if tokens[2][0] == '*' else 'C')
-        tokens[1] = tokens[1] if atype == 'C' else tokens[1][1:]
-        tokens[2] = tokens[2] if btype == 'C' else tokens[2][1:]
-
+        atype, tokens[1] = self.handleToken(tokens[1])
+        btype, tokens[2] = self.handleToken(tokens[2])
+        
         if   atype == 'R' and btype == 'R':
             self.AB(self.rawOpCodes[tokens[0] + '_RR'], tokens)
         elif atype == 'R' and btype == 'C' and int(tokens[1]) == 0:
             self.OC(self.rawOpCodes[tokens[0] + '_OC'], [0, tokens[2]])
-        elif atype == 'R' and btype == 'C' and int(tokens[2]) < self.sC:
-            self.AC(self.rawOpCodes[tokens[0] + '_RsC'], tokens)
+        # elif atype == 'R' and btype == 'C' and int(tokens[2]) < self.sC:
+        #     self.AC(self.rawOpCodes[tokens[0] + '_RsC'], tokens)
         elif atype == 'R' and btype == 'C':
             self.AbC(self.rawOpCodes[tokens[0] + '_RbC'], tokens)
         elif atype == 'R' and btype == 'M':
             self.AB(self.rawOpCodes[tokens[0] + '_RM'], tokens)
         elif atype == 'M' and btype == 'C' and int(tokens[1]) == 0 and int(tokens[2]) < self.oC:
             self.OC(self.rawOpCodes[tokens[0] + '_OMC'], [0, tokens[2]])
-        elif atype == 'M' and btype == 'C' and int(tokens[2]) < self.sC:
-            self.AC(self.rawOpCodes[tokens[0] + '_MsC'], tokens)
+        # elif atype == 'M' and btype == 'C' and int(tokens[2]) < self.sC:
+        #     self.AC(self.rawOpCodes[tokens[0] + '_MsC'], tokens)
         elif atype == 'M' and btype == 'C':
             self.AbC(self.rawOpCodes[tokens[0] + '_MbC'], tokens)
         else:
             raise Exception(f'Wrond OMC: {tokens}')
     
     def JMPHandler(self, tokens):
-        hereTag = len(self.code)
-        if self.macro is None:
-            if tokens[1] in self.tags.keys():
-                tokens[1] = str(self.tags[tokens[1]])
-            elif '__' + tokens[1] + str(self.macronum) in self.tags.keys():
-                tokens[1] = str(self.tags['__' + tokens[1] + str(self.macronum)])
-        if not tokens[1].isnumeric():
-            tokens[1] = '0'
+        # hereTag = len(self.code)
+        type_, tokens[1] = self.handleToken(tokens[1])
 
-        if   tokens[1][0] == 'R':
-            self.AB(self.rawOpCodes[tokens[0] + '_R'], [0, 0, tokens[1][1:]])
-        elif tokens[1][0] == '*':
-            self.AB(self.rawOpCodes[tokens[0] + '_M'], [0, 0, tokens[1][1:]])
-        elif abs(int(tokens[1]) - hereTag) < self.oC:
-            if int(tokens[1]) < hereTag:
-                self.OC(self.rawOpCodes[tokens[0] + '_LC'], [0, hereTag - int(tokens[1])])
-            else:
-                self.OC(self.rawOpCodes[tokens[0] + '_RC'], [0, int(tokens[1]) - hereTag])
+        if   type_ == 'R':
+            self.AB(self.rawOpCodes[tokens[0] + '_R'], [0, 0, tokens[1]])
+        elif type_ == 'M':
+            self.AB(self.rawOpCodes[tokens[0] + '_M'], [0, 0, tokens[1]])
+        # elif abs(int(tokens[1]) - hereTag) < self.oC:
+        #     if int(tokens[1]) < hereTag:
+        #         self.OC(self.rawOpCodes[tokens[0] + '_LC'], [0, hereTag - int(tokens[1])])
+        #     else:
+        #         self.OC(self.rawOpCodes[tokens[0] + '_RC'], [0, int(tokens[1]) - hereTag])
         else:
             self.AbC(self.rawOpCodes[tokens[0] + '_bC'], [0, 0, tokens[1]])
 
@@ -80,7 +83,9 @@ class Assembler:
         for line in lines:
             tokens = line.split()
             if len(tokens) > 0:
-                if tokens[0] == '@macro':
+                if tokens[0][0] == '#':
+                    continue
+                elif tokens[0] == '@macro':
                     self.macro = [tokens[1], tokens[2:], []]
                 elif tokens[0] == '@endmacro':
                     self.macros[self.macro[0]] = (self.macro[1], self.macro[2])

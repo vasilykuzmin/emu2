@@ -8,15 +8,30 @@ SUB Rstack 1
 SET Rreg *stack
 @endmacro
 
-@macro test
-JMP testtag
-ADD R4 1
-testtag!:
-ADD R5 1
+# static call
+@macro CALL stack tag
+SET *stack ret
+ADD Rstack 1
+JMP tag
+ret!:
 @endmacro
 
-test
-test
-test
+# static ret
+@macro RET stack
+SUB Rstack 1
+JMP *stack
+@endmacro
+
+
+SET R3 1000
+
+CALL 3 main
+CALL 3 main
+CALL 3 main
 
 STOP
+
+
+main:
+ADD R5 1
+RET 3

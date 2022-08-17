@@ -88,9 +88,30 @@ int main()
     std::bitset<ISIZE> ipins;
     auto last = std::chrono::steady_clock::now();
     int iterations = 0;
+    int logs = 0;
+
+    std::ofstream logFile;
+    logFile.open("tmp/logs.log", std::ios::out);
+
     while (true)
     {
+        if (logs < 100)
+        {
+            logs++;
+            for (int i = 0; i < OSIZE; ++i)
+            {
+                logFile << ipins[i];
+            }
+            logFile << '\n';
+            logFile.flush();
+        }
+        else
+        {
+            logFile.close();
+        }
+
         ipins = solve(ipins);
+        
         iterations++;
         auto nlast = std::chrono::steady_clock::now();
         auto fps = 500ms;
