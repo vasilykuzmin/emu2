@@ -1,4 +1,4 @@
 NOP
+TAG:
 NOP
-NOP
-JMP 1
+JMP TAG

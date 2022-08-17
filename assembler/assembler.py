@@ -33,24 +33,26 @@ class Assembler:
         tokens[2] = tokens[2] if btype == 'C' else tokens[2][1:]
 
         if   atype == 'R' and btype == 'R':
-            self.AB(self.rawOpCodes(tokens[0] + '_RR'), tokens)
+            self.AB(self.rawOpCodes[tokens[0] + '_RR'], tokens)
         elif atype == 'R' and btype == 'C' and int(tokens[1]) == 0:
-            self.OC(self.rawOpCodes(tokens[0] + '_OC'), [0, tokens[2]])
+            self.OC(self.rawOpCodes[tokens[0] + '_OC'], [0, tokens[2]])
         elif atype == 'R' and btype == 'C' and int(tokens[2]) < self.sC:
-            self.AC(self.rawOpCodes(tokens[0] + '_RsC'), tokens)
+            self.AC(self.rawOpCodes[tokens[0] + '_RsC'], tokens)
         elif atype == 'R' and btype == 'C':
-            self.AbC(self.rawOpCodes(tokens[0] + '_RbC'), tokens)
+            self.AbC(self.rawOpCodes[tokens[0] + '_RbC'], tokens)
         elif atype == 'R' and btype == 'M':
-            self.AB(self.rawOpCodes(tokens[0] + '_RM'), tokens)
+            self.AB(self.rawOpCodes[tokens[0] + '_RM'], tokens)
         elif atype == 'M' and btype == 'C' and int(tokens[1]) == 0 and int(tokens[2]) < self.oC:
-            self.OC(self.rawOpCodes(tokens[0] + '_OMC', [0, tokens[2]]))
+            self.OC(self.rawOpCodes[tokens[0] + '_OMC'], [0, tokens[2]])
         elif atype == 'M' and btype == 'C' and int(tokens[2]) < self.sC:
-            self.AC(self.rawOpCodes(tokens[0] + '_MsC', tokens))
+            self.AC(self.rawOpCodes[tokens[0] + '_MsC'], tokens)
         elif atype == 'M' and btype == 'C':
             self.AbC(self.rawOpCodes[tokens[0] + '_MbC'], tokens)
     
     def JMPHandler(self, tokens):
         hereTag = len(self.code)
+        if tokens[1] in self.tags.keys():
+            tokens[1] = str(self.tags[tokens[1]])
         if   tokens[1][0] == 'R':
             self.AB(self.rawOpCodes[tokens[0] + '_M'], [0, tokens[1][1:]])
         elif abs(int(tokens[1]) - hereTag) < self.oC:
@@ -70,6 +72,8 @@ class Assembler:
             if len(tokens) > 0:
                 if tokens[0] in self.handlers.keys():
                     self.handlers[tokens[0]](tokens)
+                elif tokens[0][-1] == ':':
+                    self.tags[tokens[0][:-1]] = len(self.code)
                 else:
                     raise Exception(f'No such token: {tokens[0]}')
 
@@ -83,6 +87,7 @@ class Assembler:
         self.sC = 2 ** (b - self.opCodeLen - self.reg)
         self.oC = 2 ** (b - self.opCodeLen)
         self.code = []
+        self.tags = {}
         self.rawOpCodes = {}
         _opcode = 0
         for name in OCCPU._enum.keys():
