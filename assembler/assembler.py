@@ -66,19 +66,37 @@ class Assembler:
         else:
             self.AbC(self.rawOpCodes[tokens[0] + '_bC'], [0, 0, tokens[1]])
 
-    def compile(self, ifilename, ofilename, b=16, reg=5):
-        with open(ifilename, 'r') as f:
-            lines = f.readlines()
+    def compileLines(self, lines):
+        macro = None
 
         for line in lines:
             tokens = line.split()
             if len(tokens) > 0:
-                if tokens[0] in self.handlers.keys():
+                if tokens[0] == '#macro':
+                    macro = [tokens[1], tokens[2:], []]
+                elif tokens[0] == '#endmacro':
+                    self.macros[macro[0]] = (macro[1], macro[2])
+                    macro = None
+                elif macro is not None:
+                    macro[2].append(line)
+                elif tokens[0] in self.handlers.keys():
                     self.handlers[tokens[0]](tokens)
+                elif tokens[0] in self.macros.keys():
+                    macros = self.macros[tokens[0]]
+                    overrides = {macros[0][i]: tokens[i + 1] for i in range(len(macros[0]))}
+                    override = lambda token: overrides[token] if token in overrides.keys() else (f'R{overrides[token[1:]]}' if token[0] == 'R' and token[1:] in overrides.keys() else (f'R{overrides[token[1:]]}' if token[0] == '*' and token[1:] in overrides.keys() else token))
+                    modifiedMacroCode = [' '.join(override(token) for token in line.split()) for line in macros[1]]
+                    self.compileLines(modifiedMacroCode)
                 elif tokens[0][-1] == ':':
                     self.tags[tokens[0][:-1]] = len(self.code)
                 else:
                     raise Exception(f'No such token: {tokens[0]}')
+
+    def compile(self, ifilename, ofilename):
+        with open(ifilename, 'r') as f:
+            lines = f.readlines()
+
+        self.compileLines(lines)
 
         with open(ofilename, 'w') as f:
             f.writelines(self.code)
@@ -90,6 +108,7 @@ class Assembler:
         self.sC = 2 ** (b - self.opCodeLen - self.reg)
         self.oC = 2 ** (b - self.opCodeLen)
         self.code = []
+        self.macros = {}
         self.tags = {}
         self.rawOpCodes = {}
         _opcode = 0
