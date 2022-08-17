@@ -1,6 +1,6 @@
 #!/bin/sh
 b=16
-reg=2
+reg=3
 ram=16
 
 ./assembler/assembler.py ./assembler/main.asm ./tmp/ram.bin $b $reg
