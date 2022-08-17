@@ -1,5 +1,6 @@
 #!/bin/python3
 
+from re import S
 import sys
 import pathlib
 sys.path.insert(0, str(pathlib.Path().parent.absolute()))
@@ -54,14 +55,16 @@ class Assembler:
         if tokens[1] in self.tags.keys():
             tokens[1] = str(self.tags[tokens[1]])
         if   tokens[1][0] == 'R':
-            self.AB(self.rawOpCodes[tokens[0] + '_M'], [0, tokens[1][1:]])
+            self.AB(self.rawOpCodes[tokens[0] + '_R'], [0, 0, tokens[1][1:]])
+        elif tokens[1][0] == '*':
+            self.AB(self.rawOpCodes[tokens[0] + '_M'], [0, 0, tokens[1][1:]])
         elif abs(int(tokens[1]) - hereTag) < self.oC:
             if int(tokens[1]) < hereTag:
                 self.OC(self.rawOpCodes[tokens[0] + '_LC'], [0, hereTag - int(tokens[1])])
             else:
                 self.OC(self.rawOpCodes[tokens[0] + '_RC'], [0, int(tokens[1]) - hereTag])
         else:
-            self.AbC(self.rawOpCodes[tokens[0] + '_bC'], tokens)
+            self.AbC(self.rawOpCodes[tokens[0] + '_bC'], [0, 0, tokens[1]])
 
     def compile(self, ifilename, ofilename, b=16, reg=5):
         with open(ifilename, 'r') as f:

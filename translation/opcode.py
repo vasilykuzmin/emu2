@@ -150,6 +150,7 @@ class OCCPU(Enum):
         cls._enum[f'{name}_LC'] = (cls.ALUIN.OC , cls.RAMIN.NO, (OCALU.ANOT.OFF, OCALU.AINC.OFF, OCALU.BNOT.ON , OCALU.BINC.ON , OCALU.OPC.ADD), save, cls.RAMOUT.NO, cls.PCINC.P0)
         cls._enum[f'{name}_RC'] = (cls.ALUIN.OC , cls.RAMIN.NO, (OCALU.ANOT.OFF, OCALU.AINC.OFF, OCALU.BNOT.OFF, OCALU.BINC.OFF, OCALU.OPC.ADD), save, cls.RAMOUT.NO, cls.PCINC.P0)
         cls._enum[f'{name}_bC'] = (cls.ALUIN.AbC, cls.RAMIN.NO, (OCALU.ANOT.OFF, OCALU.AINC.OFF, OCALU.BNOT.OFF, OCALU.BINC.OFF, OCALU.OPC.B  ), save, cls.RAMOUT.NO, cls.PCINC.P0) # A = R0
+        cls._enum[f'{name}_R' ] = (cls.ALUIN.AB , cls.RAMIN.NO, (OCALU.ANOT.OFF, OCALU.AINC.OFF, OCALU.BNOT.OFF, OCALU.BINC.OFF, OCALU.OPC.B  ), save, cls.RAMOUT.NO, cls.PCINC.P0) # A = R0
         cls._enum[f'{name}_M' ] = (cls.ALUIN.AB , cls.RAMIN.B , (OCALU.ANOT.OFF, OCALU.AINC.OFF, OCALU.BNOT.OFF, OCALU.BINC.OFF, OCALU.OPC.B  ), save, cls.RAMOUT.NO, cls.PCINC.P0) # A = R0
 
     @classmethod
