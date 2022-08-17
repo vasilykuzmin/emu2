@@ -1,10 +1,22 @@
-#macro ABC a b c
-SET Rc Ra
-ADD Rc Rb
-#endmacro
+@macro PUSH stack reg
+SET *stack Rreg
+ADD Rstack 1
+@endmacro
 
-SET R3 10
-SET R4 15
-ABC 3 4 5
+@macro POP stack reg
+SUB Rstack 1
+SET Rreg *stack
+@endmacro
+
+@macro test
+JMP testtag
+ADD R4 1
+testtag!:
+ADD R5 1
+@endmacro
+
+test
+test
+test
 
 STOP

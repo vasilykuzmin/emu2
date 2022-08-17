@@ -49,11 +49,19 @@ class Assembler:
             self.AC(self.rawOpCodes[tokens[0] + '_MsC'], tokens)
         elif atype == 'M' and btype == 'C':
             self.AbC(self.rawOpCodes[tokens[0] + '_MbC'], tokens)
+        else:
+            raise Exception(f'Wrond OMC: {tokens}')
     
     def JMPHandler(self, tokens):
         hereTag = len(self.code)
-        if tokens[1] in self.tags.keys():
-            tokens[1] = str(self.tags[tokens[1]])
+        if self.macro is None:
+            if tokens[1] in self.tags.keys():
+                tokens[1] = str(self.tags[tokens[1]])
+            elif '__' + tokens[1] + str(self.macronum) in self.tags.keys():
+                tokens[1] = str(self.tags['__' + tokens[1] + str(self.macronum)])
+        if not tokens[1].isnumeric():
+            tokens[1] = '0'
+
         if   tokens[1][0] == 'R':
             self.AB(self.rawOpCodes[tokens[0] + '_R'], [0, 0, tokens[1][1:]])
         elif tokens[1][0] == '*':
@@ -66,19 +74,19 @@ class Assembler:
         else:
             self.AbC(self.rawOpCodes[tokens[0] + '_bC'], [0, 0, tokens[1]])
 
-    def compileLines(self, lines):
-        macro = None
+    def compileLines(self, lines, generateTags=True):
+        self.macro = None
 
         for line in lines:
             tokens = line.split()
             if len(tokens) > 0:
-                if tokens[0] == '#macro':
-                    macro = [tokens[1], tokens[2:], []]
-                elif tokens[0] == '#endmacro':
-                    self.macros[macro[0]] = (macro[1], macro[2])
-                    macro = None
-                elif macro is not None:
-                    macro[2].append(line)
+                if tokens[0] == '@macro':
+                    self.macro = [tokens[1], tokens[2:], []]
+                elif tokens[0] == '@endmacro':
+                    self.macros[self.macro[0]] = (self.macro[1], self.macro[2])
+                    self.macro = None
+                elif self.macro is not None:
+                    self.macro[2].append(line)
                 elif tokens[0] in self.handlers.keys():
                     self.handlers[tokens[0]](tokens)
                 elif tokens[0] in self.macros.keys():
@@ -86,17 +94,22 @@ class Assembler:
                     overrides = {macros[0][i]: tokens[i + 1] for i in range(len(macros[0]))}
                     override = lambda token: overrides[token] if token in overrides.keys() else (f'R{overrides[token[1:]]}' if token[0] == 'R' and token[1:] in overrides.keys() else (f'R{overrides[token[1:]]}' if token[0] == '*' and token[1:] in overrides.keys() else token))
                     modifiedMacroCode = [' '.join(override(token) for token in line.split()) for line in macros[1]]
-                    self.compileLines(modifiedMacroCode)
+                    self.macronum += 1
+                    self.compileLines(modifiedMacroCode, generateTags)
                 elif tokens[0][-1] == ':':
-                    self.tags[tokens[0][:-1]] = len(self.code)
+                    if generateTags:
+                        if tokens[0][-2] == '!':
+                            self.tags['__' + tokens[0][:-2] + str(self.macronum)] = len(self.code)
+                        else:
+                            self.tags[tokens[0][:-1]] = len(self.code)
                 else:
                     raise Exception(f'No such token: {tokens[0]}')
 
-    def compile(self, ifilename, ofilename):
+    def compile(self, ifilename, ofilename, generateTags=True):
         with open(ifilename, 'r') as f:
             lines = f.readlines()
 
-        self.compileLines(lines)
+        self.compileLines(lines, generateTags)
 
         with open(ofilename, 'w') as f:
             f.writelines(self.code)
@@ -108,6 +121,7 @@ class Assembler:
         self.sC = 2 ** (b - self.opCodeLen - self.reg)
         self.oC = 2 ** (b - self.opCodeLen)
         self.code = []
+        self.macronum = 0
         self.macros = {}
         self.tags = {}
         self.rawOpCodes = {}
@@ -143,6 +157,9 @@ class Assembler:
         }
 
         self.compile(ifilename, ofilename)
+        self.macronum = 0
+        self.code = []
+        self.compile(ifilename, ofilename, generateTags=False)
 
 
 if __name__ == '__main__':
