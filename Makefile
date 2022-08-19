@@ -1,8 +1,8 @@
 CC=g++
-CFLAGS=-Wall -o3
+CFLAGS=-Wall
 
 all: clean
-	$(CC) $(CFLAGS) tmp/translation.hpp emu.cpp -o tmp/main
+	$(CC) $(CFLAGS) devices/screen.hpp tmp/translation.hpp emu.cpp -o tmp/main -l sfml-graphics -l sfml-window -l sfml-system
 
 clean:
 	rm -rf *.o emu

@@ -31,6 +31,8 @@ class Assembler:
             token = str(self.tags['__' + token + str(self.macronum)])
         if token in self.tags.keys():
             token = str(self.tags[token])
+        if token.startswith('0b'):
+            token = str(int(token[2:], 2))
         if not token.isnumeric():
             token = '0'
         return type_, token

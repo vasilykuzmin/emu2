@@ -7,13 +7,13 @@ sys.path.insert(0, str(pathlib.Path().parent.absolute()))
 from utils import castTuple
 
 class CodeManager:
-    includes = ['#include <iostream>', '#include <bitset>']
+    includes = ['#include <iostream>', '#include <bitset>', '#include "../devices/screen.hpp"', 'Screen screen;',]
     defines = []
-    precode = ['char pins[ASIZE];', 'std::bitset<OSIZE> solve(const std::bitset<ISIZE> & ipins) {']
+    precode = ['void render() {screen.render();}''char pins[ASIZE];', 'std::bitset<OSIZE> solve(const std::bitset<ISIZE> & ipins) {']
     input = []
     code = []
-    output = ['std::bitset<OSIZE> opins;']
-    postcode = ['return opins;', '}']
+    output = ['std::bitset<OSIZE> opins;', 'std::bitset<16> screenOpins;']
+    postcode = ['screen.handle(screenOpins);', 'return opins;', '}']
 
     @staticmethod
     def writeLines(filename, method, lines):
@@ -63,8 +63,11 @@ class CodeManager:
         CodeManager.defines.append(f'#define ASIZE {PinManager.maxNum}')
 
         o = 0
+        screenPort = 4
         for pinSet in opins:
             for pin in pinSet:
+                if o >= screenPort * 16 and o < (screenPort + 1) * 16:
+                    CodeManager.output.append(f'screenOpins[{o - screenPort * 16}] = pins[{pin}];')
                 CodeManager.output.append(f'opins[{o}] = pins[{pin}];')
                 o += 1
 

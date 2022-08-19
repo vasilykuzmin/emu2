@@ -117,6 +117,7 @@ int main()
         auto fps = 500ms;
         if (nlast - last > fps)
         {
+            render();
             system("clear");
             std::cout << iterations * (1s / fps) << " Hz" << '\n';
             #ifdef OSHAPE
