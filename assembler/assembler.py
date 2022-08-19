@@ -25,8 +25,7 @@ class Assembler:
 
 
     def handleToken(self, token):
-        type_ = 'R' if token[0] == 'R' else ('M' if token[0] == '*' else 'C')
-        token = token if type_ == 'C' else token[1:]
+        type_, token = ('R', token[1:]) if token.startswith('R') else (('M', token[2:]) if token.startswith('*R') else ('C', token))
         if '__' + token + str(self.macronum) in self.tags.keys():
             token = str(self.tags['__' + token + str(self.macronum)])
         if token in self.tags.keys():
@@ -99,7 +98,7 @@ class Assembler:
                 elif tokens[0] in self.macros.keys():
                     macros = self.macros[tokens[0]]
                     overrides = {macros[0][i]: tokens[i + 1] for i in range(len(macros[0]))}
-                    override = lambda token: overrides[token] if token in overrides.keys() else (f'R{overrides[token[1:]]}' if token[0] == 'R' and token[1:] in overrides.keys() else (f'R{overrides[token[1:]]}' if token[0] == '*' and token[1:] in overrides.keys() else token))
+                    override = lambda token: overrides[token] if token in overrides.keys() else (f'*{overrides[token[1:]]}' if token[1:] in overrides.keys() else token)
                     modifiedMacroCode = [' '.join(override(token) for token in line.split()) for line in macros[1]]
                     self.macronum += 1
                     self.compileLines(modifiedMacroCode, generateTags)
